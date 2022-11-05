@@ -1,3 +1,5 @@
+import numpy as np
+
 def load_dictionary(filename):
     
     with open(filename) as f:
