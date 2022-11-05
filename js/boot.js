@@ -19,7 +19,7 @@ class Boot extends Phaser.Scene {
 	create () {
 		let scene = this.scene;
 		// Start the actual game!
-		scene.start('intro');
+		scene.start('game');
 	}
 
 }
