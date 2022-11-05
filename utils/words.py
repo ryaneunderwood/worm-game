@@ -7,7 +7,7 @@
 from word_stemming import PorterStemmer
 
 # acquire word list
-with open("legal_words") as f:
+with open("legal_words.txt") as f:
     legal_words = f.read().splitlines()
 
 with open("common_words") as f:
