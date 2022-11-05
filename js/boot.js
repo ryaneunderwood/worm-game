@@ -12,7 +12,7 @@ class Boot extends Phaser.Scene {
 
 	// Preload assets from disk
 	preload () {
-		// this.load.image('press_start', 'assets/sprites/shared/press_start.png');
+		this.load.html("form", "html/form.html");
 	}
 
 
