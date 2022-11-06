@@ -72,7 +72,9 @@ class Game extends Phaser.Scene {
     
 	check_word(input_word) {
 		let prev_word = this.prev_word.text;
-		if(input_word === prev_word || Math.abs(input_word.length - prev_word.length)>=2) {
+		if(input_word.length == 0 || 
+			input_word === prev_word || 
+			Math.abs(input_word.length - prev_word.length)>=2) {
 			return false;
 		}
 
