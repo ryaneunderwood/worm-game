@@ -13,12 +13,14 @@ class Game extends Phaser.Scene {
 	this.return_key;
 	
 	this.count = 0;
+        this.VICTORY = 0;
+        this.complaint_counter = 0;
 	
 	this.sound_toggle;
 	this.bgm;
 	this.reset;
 	this.restart;
-	
+		
 	}
 
     create() {
@@ -61,8 +63,9 @@ class Game extends Phaser.Scene {
 
 		this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 		this.return_key.on('down', function (event) {
+                        if (this.VICTORY==0) {
 			let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-			if (this.check_word(input_word)) {
+			if ((this.check_word(input_word))&&(!this.check_victory(input_word))) {
 				this.word_history.text = this.word_history.text + "\n> " + input_word;
 				this.prev_word.setText(input_word);
 				this.count++;
@@ -71,14 +74,34 @@ class Game extends Phaser.Scene {
 					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
 					//this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
 				}
-			} else {
+			} else if ((this.check_word(input_word))&&(this.check_victory(input_word))) {
+				this.word_history.text = this.word_history.text + "\n> " + input_word;
+				this.prev_word.setText(input_word);
+				this.count++;
+                                let victory_string = 'YOU WIN IN ';
+				this.score_counter.setText(victory_string.concat(this.count));
+                                this.VICTORY = 1;
+                        } else {
 				this.shake_input.shake();
 			}
+                        } else {
+                                this.shake_input.shake();
+                                if (this.complaint_counter < this.arrayComplaints.length) {
+                                    let complain_string = this.arrayComplaints.at(this.complaint_counter);
+                                    this.score_counter.setText(complain_string);
+                                } else {
+                                    let complain_string = 'YOU WIN, RESET NOW';
+                                    this.score_counter.setText(complain_string);
+                                }
+                                this.complaint_counter++;
+                        }
 		}, this);
 
 	this.loadWords();
-	
+        this.loadComplaints();
+
 	//Mute button
+
 		this.bgm = this.sound.add("boar_game_music", {loop : true});
 		this.bgm.play();
 
@@ -115,6 +138,8 @@ class Game extends Phaser.Scene {
 	    this.prev_word.setText(this.start_word);
 	    this.word_history.setText("> "+this.start_word);
 	    this.count = 0;
+            this.VICTORY = 0;
+            this.complaint_counter = 0;
 	    this.score_counter.setText("0");
 	    this.goal_word.setText("END"); //New end word
 	}, this);
@@ -154,4 +179,14 @@ class Game extends Phaser.Scene {
 	this.arrayWords = myWords.split('\n');
     }
 
+        check_victory(input_word) {
+                let goal_word = this.goal_word.text;
+                if(input_word == goal_word) {
+                        return true
+                }
+        }
+
+        loadComplaints(complaint_number) {                
+            this.arrayComplaints = ['WHAT ARE YOU DOING','STOP','PLEASE','CONTROL YOURSELF','HAVE YOU NO SHAME','RESET PLEASE','OR ELSE','','','','HAPPY NOW?','GOODBYE'];
+        }
 }
