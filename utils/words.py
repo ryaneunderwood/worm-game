@@ -19,11 +19,14 @@ newlist = []
 # stem words
 for word in common_words:
     newword = stemmer.stem(word, 0, len(word)-1)
-    if len(newword) > 3:
+    if (len(newword) >= 3)&(len(newword) <= 7):
         newlist.append(newword)
 
 # remove duplicated words
 newlist = list(dict.fromkeys(newlist))
+
+# sort the list alphabetically for convenience
+newlist = sorted(newlist)
 
 # add to stemmed word list
 with open("words_stemmed", "w") as f:
