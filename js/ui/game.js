@@ -130,7 +130,7 @@ class Game extends Phaser.Scene {
 	}, this);
 
 	//Restart button
-	this.restart = this.add.text(RESTART_X, RESTART_Y, "RESTART",
+	this.restart = this.add.text(RESTART_X, RESTART_Y, "NEW GAME",
 				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 	this.restart.setInteractive();
 	this.restart.on('pointerdown',function(event){
