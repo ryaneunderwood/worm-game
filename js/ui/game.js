@@ -2,26 +2,30 @@ class Game extends Phaser.Scene {
 
     constructor() {
 	super('game');
+	this.start_word;
 	this.prev_word;
 	this.goal_word;
 	this.score_counter;
 	this.word_history;
 		
-		this.input_box;
-		this.shake_input;
-		this.return_key;
-		
-		this.count = 0;
-
-		this.sound_toggle;
-		this.bgm;
+	this.input_box;
+	this.shake_input;
+	this.return_key;
+	
+	this.count = 0;
+	
+	this.sound_toggle;
+	this.bgm;
+	this.reset;
+	
 	}
 
     create() {
-		var resolution = 5;
+	var resolution = 5;
 		this.prev_word = this.add.text(PREV_WORD_X,PREV_WORD_Y,"START",
 			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
-		this.prev_word.setOrigin(0.5,0.5);
+	this.prev_word.setOrigin(0.5,0.5);
+	this.start_word = this.prev_word.text;
 		this.goal_word = this.add.text(GOAL_WORD_X,GOAL_WORD_Y,"END",
 			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 		this.goal_word.setOrigin(0.5,0.5);
@@ -88,6 +92,16 @@ class Game extends Phaser.Scene {
 				this.sound_toggle.alpha = 1.;
 			}
 		}, this);
+
+	this.reset = this.add.text(RESET_X, RESET_Y, "RESET",
+				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+	this.reset.setInteractive();
+	this.reset.on('pointerdown',function(event){
+	    this.prev_word.setText(this.start_word);
+	    this.word_history.setText(this.start_word);
+	    this.count = 0;
+	    this.score_counter.setText("0");
+	}, this);
     }
     
 	check_word(input_word) {
