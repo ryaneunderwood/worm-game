@@ -7,13 +7,14 @@ class Game extends Phaser.Scene {
 	this.score_counter;
 	this.word_history;
 		
-	this.input_box;
-	this.shake_input;
-	this.return_key;
-	
-	this.count = 0;
-	this.enter;
+		this.input_box;
+		this.shake_input;
+		this.return_key;
+		
+		this.count = 0;
 
+		this.sound_toggle;
+		this.bgm;
 	}
 
     create() {
@@ -62,8 +63,8 @@ class Game extends Phaser.Scene {
 				this.count++;
 				this.score_counter.setText(this.count);
 				if (this.word_history.displayHeight > HISTORY_BOX_H) {
-					//this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
-					this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
+					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+					//this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
 				}
 			} else {
 				this.shake_input.shake();
@@ -72,6 +73,21 @@ class Game extends Phaser.Scene {
 
 		this.loadWords();
 
+		this.bgm = this.sound.add("boar_game_music", {loop : true});
+		this.bgm.play();
+
+		this.sound_toggle = this.add.text(SOUND_TOGGLE_X, SOUND_TOGGLE_Y, "SOUND", 
+			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+		this.sound_toggle.setInteractive();
+		this.sound_toggle.on('pointerdown', function (event) {
+			if (!this.bgm.mute) {
+				this.bgm.mute = true;
+				this.sound_toggle.alpha = 0.2;
+			} else {
+				this.bgm.mute = false;
+				this.sound_toggle.alpha = 1.;
+			}
+		}, this);
     }
     
 	check_word(input_word) {
