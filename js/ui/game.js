@@ -1,18 +1,19 @@
 class Game extends Phaser.Scene {
 
     constructor() {
-		super('game');
-		this.prev_word;
-		this.goal_word;
-		this.score_counter;
-		this.word_history;
+	super('game');
+	this.prev_word;
+	this.goal_word;
+	this.score_counter;
+	this.word_history;
 		
-		this.input_box;
-		this.shake_input;
-		this.return_key;
-		
-		this.count = 0;
-		this.enter;
+	this.input_box;
+	this.shake_input;
+	this.return_key;
+	
+	this.count = 0;
+	this.enter;
+
 	}
 
     create() {
@@ -68,13 +69,19 @@ class Game extends Phaser.Scene {
 				this.shake_input.shake();
 			}
 		}, this);
+
+		this.loadWords();
+
     }
     
 	check_word(input_word) {
-		let prev_word = this.prev_word.text;
+	    let prev_word = this.prev_word.text;
+	    console.log(input_word.toLowerCase());
+	    console.log(this.arrayWords.includes(input_word.toLowerCase()));
 		if(input_word.length == 0 || 
-			input_word === prev_word || 
-			Math.abs(input_word.length - prev_word.length)>=2) {
+		   input_word === prev_word || 
+		   Math.abs(input_word.length - prev_word.length)>=2 ||
+		   !this.arrayWords.includes(input_word.toLowerCase()) ) {
 			return false;
 		}
 
@@ -93,4 +100,11 @@ class Game extends Phaser.Scene {
 		}
 		return true;
 	}
+
+    loadWords() {
+	let cache = this.cache.text;
+	let myWords= cache.get('legal_words');
+	this.arrayWords = myWords.split('\n');
+    }
+
 }
