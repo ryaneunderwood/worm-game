@@ -3,18 +3,29 @@
     <head>
         <style>
             #input-form {
-                padding: 5px;
+                padding: 0px;
             }
             #input-form input {
-                padding: 10px;
-                font-size: 12px;
-                width: 100px;
+                padding: 0px;
+                font-size: 24px;
+                width: 150px;
+                caret-color: white;
+                font-family: monospace;
+                color: white;
+                text-align: center;
+                background: transparent;
+                border: none;
+                text-transform: uppercase;
+            }
+            ::placeholder {
+                color: gray;
+                text-align: center;
             }
         </style>
     </head>
     <body>
         <div id="input-form">
-            <input type="text" name="input_word" placeholder="word here" />
+            <input type="text" name="input_word" placeholder="input word"/>
         </div>
     </body>
 </html>

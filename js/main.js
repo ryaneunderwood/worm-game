@@ -1,6 +1,3 @@
-WINDOW_WIDTH = 640;
-WINDOW_HEIGHT = 640;
-
 var config = {
     type: Phaser.AUTO,
     parent: "game",
