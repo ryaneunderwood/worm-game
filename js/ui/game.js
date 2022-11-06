@@ -20,6 +20,10 @@ class Game extends Phaser.Scene {
 	this.bgm;
 	this.reset;
 	this.restart;
+
+	this.daily_challenge;
+	this.free_play;
+	this.regular;
 		
 	}
 
@@ -106,7 +110,7 @@ class Game extends Phaser.Scene {
 		this.bgm.play();
 
 		this.sound_toggle = this.add.text(SOUND_TOGGLE_X, SOUND_TOGGLE_Y, "SOUND", 
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+						  { fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#ff0000"}).setResolution(resolution);
 		this.sound_toggle.setInteractive();
 		this.sound_toggle.on('pointerdown', function (event) {
 			if (!this.bgm.mute) {
@@ -120,7 +124,7 @@ class Game extends Phaser.Scene {
 
 	//Reset button. This will clear the word history and word count while retaining the same start and end word.
 	this.reset = this.add.text(RESET_X, RESET_Y, "RESET",
-				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(resolution);
 	this.reset.setInteractive();
 	this.reset.on('pointerdown',function(event){
 	    this.prev_word.setText(this.start_word);
@@ -129,9 +133,9 @@ class Game extends Phaser.Scene {
 	    this.score_counter.setText("0");
 	}, this);
 
-	//Restart button
+	//New game button
 	this.restart = this.add.text(RESTART_X, RESTART_Y, "NEW GAME",
-				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(resolution);
 	this.restart.setInteractive();
 	this.restart.on('pointerdown',function(event){
 	    this.start_word = "START" //New start word
@@ -142,6 +146,37 @@ class Game extends Phaser.Scene {
             this.complaint_counter = 0;
 	    this.score_counter.setText("0");
 	    this.goal_word.setText("END"); //New end word
+	}, this);
+
+	//---------------- Add game modes-------------------------
+	//Regular mode. This is the default mode where start and goal words are picked from the dictionary.
+	this.regular = this.add.text(GMODE_X, GMODE1_Y, "REGULAR",
+				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#00ff00"}).setResolution(resolution);
+	this.regular.setInteractive();
+	this.regular.on('pointerdown',function(event){
+	    this.start_word = "START";
+	    this.prev_word.setText(this.start_word);
+	    this.word_history.setText("> "+this.start_word);
+	    this.count = 0;
+            this.VICTORY = 0;
+            this.complaint_counter = 0;
+	    this.score_counter.setText("0");
+	    this.goal_word.setText("END"); //New end word
+	}, this);
+
+	//Daily challenge. The start and goal words are set by the developers in game_mode_settings.js
+	this.daily_challenge = this.add.text(GMODE_X, GMODE2_Y, "DAILY \n CHALLENGE",
+					     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: '#00ff00'}).setResolution(resolution);
+	this.daily_challenge.setInteractive();
+	this.daily_challenge.on('pointerdown',function(event){
+	    this.start_word = DAILY_START_WORD;
+	    this.prev_word.setText(this.start_word);
+	    this.word_history.setText("> "+this.start_word);
+	    this.count = 0;
+            this.VICTORY = 0;
+            this.complaint_counter = 0;
+	    this.score_counter.setText("0");
+	    this.goal_word.setText(DAILY_GOAL_WORD); //New end word
 	}, this);
 
     }
@@ -189,4 +224,5 @@ class Game extends Phaser.Scene {
         loadComplaints(complaint_number) {                
             this.arrayComplaints = ['WHAT ARE YOU DOING','STOP','PLEASE','CONTROL YOURSELF','HAVE YOU NO SHAME','RESET PLEASE','OR ELSE','','','','HAPPY NOW?','GOODBYE'];
         }
+
 }
