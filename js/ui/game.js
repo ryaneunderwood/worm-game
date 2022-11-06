@@ -8,6 +8,7 @@ class Game extends Phaser.Scene {
 		this.word_history;
 		
 		this.input_box;
+		this.shake_input;
 		this.return_key;
 		
 		this.count = 0;
@@ -28,11 +29,14 @@ class Game extends Phaser.Scene {
 		
 		this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
 		this.input_box.setOrigin(0.5,0.5);
+		this.shake_input = this.plugins.get('rexshakepositionplugin').add(this.input_box, {
+			duration: 100,
+			magnitude: 15
+		});
 		
-		this.word_history = this.add.rexBBCodeText(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
+		this.word_history = this.add.text(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
 			{ fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(resolution);
 		this.word_history.setText("> "+this.prev_word.text);
-		//this.word_history.setText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
 
 		var graphics = this.make.graphics();
 		graphics.fillRect(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H);
@@ -58,8 +62,10 @@ class Game extends Phaser.Scene {
 				this.score_counter.setText(this.count);
 				if (this.word_history.displayHeight > HISTORY_BOX_H) {
 					//this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
-					this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1)
+					this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
 				}
+			} else {
+				this.shake_input.shake();
 			}
 		}, this);
     }
