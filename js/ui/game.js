@@ -17,6 +17,7 @@ class Game extends Phaser.Scene {
 	this.sound_toggle;
 	this.bgm;
 	this.reset;
+	this.restart;
 	
 	}
 
@@ -75,8 +76,9 @@ class Game extends Phaser.Scene {
 			}
 		}, this);
 
-		this.loadWords();
-
+	this.loadWords();
+	
+	//Mute button
 		this.bgm = this.sound.add("boar_game_music", {loop : true});
 		this.bgm.play();
 
@@ -93,15 +95,30 @@ class Game extends Phaser.Scene {
 			}
 		}, this);
 
+	//Reset button. This will clear the word history and word count while retaining the same start and end word.
 	this.reset = this.add.text(RESET_X, RESET_Y, "RESET",
 				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 	this.reset.setInteractive();
 	this.reset.on('pointerdown',function(event){
 	    this.prev_word.setText(this.start_word);
-	    this.word_history.setText(this.start_word);
+	    this.word_history.setText("> "+this.start_word);
 	    this.count = 0;
 	    this.score_counter.setText("0");
 	}, this);
+
+	//Restart button
+	this.restart = this.add.text(RESTART_X, RESTART_Y, "RESTART",
+				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+	this.restart.setInteractive();
+	this.restart.on('pointerdown',function(event){
+	    this.start_word = "START" //New start word
+	    this.prev_word.setText(this.start_word);
+	    this.word_history.setText("> "+this.start_word);
+	    this.count = 0;
+	    this.score_counter.setText("0");
+	    this.goal_word.setText("END"); //New end word
+	}, this);
+
     }
     
 	check_word(input_word) {
