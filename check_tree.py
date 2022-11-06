@@ -1,7 +1,7 @@
 from operator import itemgetter
 
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-wordmap = (open("utils/wordmaP.txt").readlines())
+wordmap = (open("utils/wordmap.txt").readlines())
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
 LW = (open("utils/legal_words.txt").readlines())
 L=LW
@@ -16,7 +16,7 @@ def check_dict(word): #Check dictionary to return only real words
         return True
     else:
         return False
-    '''
+    
 def check_tree_len(word1,word2):
     
     tree1=[[word1,0]]
@@ -57,7 +57,7 @@ def check_tree_len(word1,word2):
            
     return nsteps1+nsteps2
 
-    '''    
+        
     
 def onestage(word,n,tr_prev):
     
