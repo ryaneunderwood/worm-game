@@ -12,6 +12,7 @@ class Boot extends Phaser.Scene {
 
 	// Preload assets from disk
 	preload () {
+		this.load.plugin('rexbbcodetextplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexbbcodetextplugin.min.js', true);
 		this.load.html("form", "html/form.html");
 	}
 

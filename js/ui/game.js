@@ -15,21 +15,22 @@ class Game extends Phaser.Scene {
 	}
 
     create() {
+		var resolution = 5;
 		this.prev_word = this.add.text(PREV_WORD_X,PREV_WORD_Y,"START",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(5);
+			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 		this.prev_word.setOrigin(0.5,0.5);
 		this.goal_word = this.add.text(GOAL_WORD_X,GOAL_WORD_Y,"END",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(5);
+			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 		this.goal_word.setOrigin(0.5,0.5);
 		this.score_counter = this.add.text(SCORE_X,SCORE_Y,"0",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(5);
+			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
 		this.score_counter.setOrigin(0.5,0.5);
 		
 		this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
 		this.input_box.setOrigin(0.5,0.5);
 		
-		this.word_history = this.add.text(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
-			{ fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(5);;
+		this.word_history = this.add.rexBBCodeText(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
+			{ fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(resolution);
 		this.word_history.setText("> "+this.prev_word.text);
 		//this.word_history.setText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
 
@@ -49,12 +50,16 @@ class Game extends Phaser.Scene {
 
 		this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 		this.return_key.on('down', function (event) {
-			let input_word = this.input_box.getChildByName("input_word").value;
+			let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
 			if (this.check_word(input_word)) {
-				this.word_history.setText(this.word_history.text + "\n> " + input_word);
+				this.word_history.text = this.word_history.text + "\n> " + input_word;
 				this.prev_word.setText(input_word);
 				this.count++;
 				this.score_counter.setText(this.count);
+				if (this.word_history.displayHeight > HISTORY_BOX_H) {
+					//this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+					this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1)
+				}
 			}
 		}, this);
     }
