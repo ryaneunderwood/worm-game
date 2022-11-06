@@ -1,17 +1,22 @@
 from operator import itemgetter
 
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
+wordmap = (open("utils/wordmap.txt").readlines())
+alphabet=list('abcdefghijklmnopqrstuvwxyz')
 LW = (open("utils/legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
     L[i]=LW[i].strip('\n')
 sortedDict=sorted(L, key=len)
 
+
+
 def check_dict(word): #Check dictionary to return only real words
     if word in L:
         return True
     else:
         return False
+    
 def check_tree_len(word1,word2):
     
     tree1=[[word1,0]]
