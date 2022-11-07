@@ -73,8 +73,23 @@ def onestage(word,n,tr_prev):
                 tree+=([[i,n]])
     return tree
             
-                
+
+def calc_one_word(query_word, query_word_idx, graph_dict, dictn, dictn_idx):
+    query_word_str="".join(query_word)
+    if query_word_str not in graph_dict:
+        graph_dict[query_word_str] = []
+    for i in range(len(dictn))[query_word_idx-dictn_idx:]:
+        word2 = dictn[i]
+        if diffby1(query_word_str,word2):
+            graph_dict[query_word_str].append(dictn_idx+i)
+            if word2 not in graph_dict:
+                graph_dict[word2] = []
+            graph_dict[word2].append(query_word_idx)
+
+
 def diffby1(string1,string2):
+    if string1 == string2:
+        return False
     if len(string1) == len(string2):
         count_diffs = 0
         for a, b in zip(string1, string2):
