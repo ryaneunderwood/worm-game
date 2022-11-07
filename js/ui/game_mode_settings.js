@@ -1,0 +1,2 @@
+const DAILY_START_WORD = 'BUSY'
+const DAILY_GOAL_WORD = "CARPET"
