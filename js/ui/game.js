@@ -25,69 +25,77 @@ class Game extends Phaser.Scene {
 	this.free_play;
 	this.regular;
 		
+	this.tween_notinenglish
 	}
 
     create() {
-	var resolution = 5;
-		this.prev_word = this.add.text(PREV_WORD_X,PREV_WORD_Y,"START",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
+	this.prev_word = this.add.text(PREV_WORD_X,PREV_WORD_Y,"START",
+					       { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
 	this.prev_word.setOrigin(0.5,0.5);
-	this.start_word = this.prev_word.text;
-		this.goal_word = this.add.text(GOAL_WORD_X,GOAL_WORD_Y,"END",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
-		this.goal_word.setOrigin(0.5,0.5);
-		this.score_counter = this.add.text(SCORE_X,SCORE_Y,"0",
-			{ fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(resolution);
-		this.score_counter.setOrigin(0.5,0.5);
-		
-		this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
-		this.input_box.setOrigin(0.5,0.5);
-		this.shake_input = this.plugins.get('rexshakepositionplugin').add(this.input_box, {
-			duration: 100,
-			magnitude: 15
+	this.goal_word = this.add.text(GOAL_WORD_X,GOAL_WORD_Y,"END",
+					       { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
+	this.goal_word.setOrigin(0.5,0.5);
+	this.score_counter = this.add.text(SCORE_X,SCORE_Y,"0",
+						   { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
+	this.score_counter.setOrigin(0.5,0.5);
+	
+	this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
+	this.input_box.setOrigin(0.5,0.5);
+	this.shake_input = this.plugins.get('rexshakepositionplugin').add(this.input_box, {
+		    duration: 100,
+		    magnitude: 15
 		});
 		
-		this.word_history = this.add.text(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
-			{ fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(resolution);
-		this.word_history.setText("> "+this.prev_word.text);
+	this.word_history = this.add.text(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
+						  { fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(RESOLUTION);
+	this.word_history.setText("> "+this.prev_word.text);
 
-		var graphics = this.make.graphics();
-		graphics.fillRect(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H);
-		var history_mask = new Phaser.Display.Masks.GeometryMask(this, graphics);
-		this.word_history.setMask(history_mask);
-		var history_zone = this.add.zone(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H).setOrigin(0).setInteractive();
+	this.error_msg = this.add.text(ERROR_BOX_X, ERROR_BOX_Y,"", { fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 500 , useAdvancedWrap: true}}).setResolution(RESOLUTION);
+	
+	
+	var graphics = this.make.graphics();
+	graphics.fillRect(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H);
+	var history_mask = new Phaser.Display.Masks.GeometryMask(this, graphics);
+	this.word_history.setMask(history_mask);
+	var history_zone = this.add.zone(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H).setOrigin(0).setInteractive();
 	
 		history_zone.on('wheel', function (pointer) {
-			if (this.word_history.displayHeight > HISTORY_BOX_H) {
-				this.word_history.y -= (pointer.deltaY / 5);
-				this.word_history.y = Phaser.Math.Clamp(this.word_history.y, 
-					HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight, HISTORY_BOX_Y);
+		    if (this.word_history.displayHeight > HISTORY_BOX_H) {
+			    this.word_history.y -= (pointer.deltaY / 5);
+			    this.word_history.y = Phaser.Math.Clamp(this.word_history.y, 
+									HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight, HISTORY_BOX_Y);
 			}
 		}, this);
 
-		this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-		this.return_key.on('down', function (event) {
-                        if (this.VICTORY==0) {
-			let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-			if ((this.check_word(input_word))&&(!this.check_victory(input_word))) {
-				this.word_history.text = this.word_history.text + "\n> " + input_word;
-				this.prev_word.setText(input_word);
-				this.count++;
-				this.score_counter.setText(this.count);
+	this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+	this.return_key.on('down', function (event) {
+                    if (this.VICTORY==0) {
+		    let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
+		    if (this.check_word(input_word) && this.check_word_English(input_word) && !this.check_victory(input_word)) {
+			    this.word_history.text = this.word_history.text + "\n> " + input_word;
+			    this.prev_word.setText(input_word);
+			    this.count++;
+			    this.score_counter.setText(this.count);
 				if (this.word_history.displayHeight > HISTORY_BOX_H) {
-					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
-					//this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
+				    this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+				    //this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
 				}
-			} else if ((this.check_word(input_word))&&(this.check_victory(input_word))) {
+			} else if ((this.check_word(input_word))&& this.check_word_English(input_word) && (this.check_victory(input_word))) {
 				this.word_history.text = this.word_history.text + "\n> " + input_word;
 				this.prev_word.setText(input_word);
 				this.count++;
                                 let victory_string = 'YOU WIN IN ';
 				this.score_counter.setText(victory_string.concat(this.count));
                                 this.VICTORY = 1;
-                        } else {
-				this.shake_input.shake();
-			}
+		        } else if (!this.check_word_English(input_word)){
+			        this.shake_input.shake();
+			        this.error_msg.setText("This is not an English word");
+			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
+		        } else {
+			        this.shake_input.shake();
+			        this.error_msg.setText("This is not a permitted word");
+			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this);    
+		        } 
                         } else {
                                 this.shake_input.shake();
                                 if (this.complaint_counter < this.arrayComplaints.length) {
@@ -110,7 +118,7 @@ class Game extends Phaser.Scene {
 		this.bgm.play();
 
 		this.sound_toggle = this.add.text(SOUND_TOGGLE_X, SOUND_TOGGLE_Y, "SOUND", 
-						  { fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#ff0000"}).setResolution(resolution);
+	                { fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#ff0000"}).setResolution(RESOLUTION);
 		this.sound_toggle.setInteractive();
 		this.sound_toggle.on('pointerdown', function (event) {
 			if (!this.bgm.mute) {
@@ -124,7 +132,7 @@ class Game extends Phaser.Scene {
 
 	//Reset button. This will clear the word history and word count while retaining the same start and end word.
 	this.reset = this.add.text(RESET_X, RESET_Y, "RESET",
-				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(resolution);
+				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(RESOLUTION);
 	this.reset.setInteractive();
 	this.reset.on('pointerdown',function(event){
 	    this.prev_word.setText(this.start_word);
@@ -135,7 +143,7 @@ class Game extends Phaser.Scene {
 
 	//New game button
 	this.restart = this.add.text(RESTART_X, RESTART_Y, "NEW GAME",
-				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(resolution);
+				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(RESOLUTION);
 	this.restart.setInteractive();
 	this.restart.on('pointerdown',function(event){
 	    this.start_word = "START" //New start word
@@ -151,7 +159,7 @@ class Game extends Phaser.Scene {
 	//---------------- Add game modes-------------------------
 	//Regular mode. This is the default mode where start and goal words are picked from the dictionary.
 	this.regular = this.add.text(GMODE_X, GMODE1_Y, "REGULAR",
-				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#00ff00"}).setResolution(resolution);
+				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#00ff00"}).setResolution(RESOLUTION);
 	this.regular.setInteractive();
 	this.regular.on('pointerdown',function(event){
 	    this.start_word = "START";
@@ -166,7 +174,7 @@ class Game extends Phaser.Scene {
 
 	//Daily challenge. The start and goal words are set by the developers in game_mode_settings.js
 	this.daily_challenge = this.add.text(GMODE_X, GMODE2_Y, "DAILY \n CHALLENGE",
-					     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: '#00ff00'}).setResolution(resolution);
+					     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: '#00ff00'}).setResolution(RESOLUTION);
 	this.daily_challenge.setInteractive();
 	this.daily_challenge.on('pointerdown',function(event){
 	    this.start_word = DAILY_START_WORD;
@@ -183,36 +191,39 @@ class Game extends Phaser.Scene {
     
 	check_word(input_word) {
 	    let prev_word = this.prev_word.text;
-	    console.log(input_word.toLowerCase());
-	    console.log(this.arrayWords.includes(input_word.toLowerCase()));
 		if(input_word.length == 0 || 
 		   input_word === prev_word || 
-		   Math.abs(input_word.length - prev_word.length)>=2 ||
-		   !this.arrayWords.includes(input_word.toLowerCase()) ) {
-			return false;
+		   Math.abs(input_word.length - prev_word.length)>=2 ) {
+		    return false;
 		}
 
-		for (let i = 0; i < input_word.length; i++) {
-			if (i >= prev_word.length)
-				break;
-
-			if (input_word[i] !== prev_word[i]) {
-				if (input_word.length == prev_word.length)
-					return input_word.substring(i+1) === prev_word.substring(i+1);
-				else if (input_word.length < prev_word.length)
-					return input_word.substring(i) === prev_word.substring(i+1);
-				else if (input_word.length > prev_word.length)
-					return input_word.substring(i+1) === prev_word.substring(i);
-			}
+	    for (let i = 0; i < input_word.length; i++) {
+		if (i >= prev_word.length)
+		    break;
+		
+		if (input_word[i] !== prev_word[i]) {
+		    if (input_word.length == prev_word.length)
+			return input_word.substring(i+1) === prev_word.substring(i+1);
+		    else if (input_word.length < prev_word.length)
+			return input_word.substring(i) === prev_word.substring(i+1);
+		    else if (input_word.length > prev_word.length)
+			return input_word.substring(i+1) === prev_word.substring(i);
 		}
-		return true;
+	    }
+	    return true;
 	}
+    
+        check_word_English(input_word) {
+	    if(this.arrayWords.includes(input_word.toLowerCase()) ) {
+	        return true;
+	    }
+        }
 
-    loadWords() {
-	let cache = this.cache.text;
-	let myWords= cache.get('legal_words');
-	this.arrayWords = myWords.split('\n');
-    }
+        loadWords() {
+	    let cache = this.cache.text;
+	    let myWords= cache.get('legal_words');
+	    this.arrayWords = myWords.split('\n');
+        }
 
         check_victory(input_word) {
                 let goal_word = this.goal_word.text;
