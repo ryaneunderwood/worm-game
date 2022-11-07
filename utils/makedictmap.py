@@ -3,7 +3,7 @@ from operator import itemgetter
 from time import time
 
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-LW = (open("utils/legal_words.txt").readlines())
+LW = (open("legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
     L[i]=LW[i].strip('\n')
