@@ -2,12 +2,12 @@ import check_tree as ct
 from operator import itemgetter
 
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-LW = (open("utils/legal_words.txt").readlines())
+LW = (open("legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
     L[i]=LW[i].strip('\n')
 sortedDict=sorted(L, key=len)
-f=open("./utils/wordmap.txt","w")
+f=open("wordmap.txt","w")
 
 for i in range(len(sortedDict))[17823:27000]:
     

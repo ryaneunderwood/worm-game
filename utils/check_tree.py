@@ -1,9 +1,8 @@
 from operator import itemgetter
-
+from copy import deepcopy
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-wordmap = (open("utils/wordmap.txt").readlines())
-alphabet=list('abcdefghijklmnopqrstuvwxyz')
-LW = (open("utils/legal_words.txt").readlines())
+wordmap = (open("wordmap10p.txt").readlines())
+LW = (open("legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
     L[i]=LW[i].strip('\n')
@@ -19,43 +18,50 @@ def check_dict(word): #Check dictionary to return only real words
     
 def check_tree_len(word1,word2):
     
-    tree1=[[word1,0]]
-    word1=list(word1)
-    tree2=[[word2,0]]
-    word2=list(word2)
+    tree1=[[sortedDict.index(word1),0,0]]
+
+    tree2=[[sortedDict.index(word2),0,0]]
+
     if word1==word2:
-        print('Words are identitical')
         return 0
-    nsteps1=0
-    nsteps2=0
-    tree1+=(onestage(word1,nsteps1+1,tree1))
-    nsteps1+=1
-    if not max(list( map(itemgetter(1), tree1)))==nsteps1:
-        return -1
-    
-    if "".join(word2) in list( map(itemgetter(0), tree1)):
-        
-        return 1
-                        
-    tree2+=(onestage(word2,nsteps2+1,tree2))
-    if any(j in list( map(itemgetter(0), tree1)) for j in list( map(itemgetter(0), tree2))):
-        return 2
-    nsteps2+=1
-    while not any(j in list( map(itemgetter(0), tree1)) for j in list( map(itemgetter(0), tree2))):
+    nsteps1=1
+    nsteps2=1    
+    fails=0
+   
+    while not any(j in  [item[0] for item in tree1] for j in [item[0] for item in tree2]):
+        if fails==3:
+            return -1
         if len(tree1)<=len(tree2):
-            for i in tree1:
-                if i[1]==nsteps1:
-                    tree1+=(onestage(list(i[0]),nsteps1+1,tree1))
+            tree1a=deepcopy(tree1)
+            for count,i in enumerate(list( map(itemgetter(0), tree1a))):                
+                fulllist=[eval(n) for n in wordmap[tree1a[count][0]].split(',[')[1:][0].strip('\n').strip(']').split(',')]
+                for x in fulllist:
+                    if not x in list( map(itemgetter(0), tree1a)):
+                        tree1a+=[[x,nsteps1,i]]
+            print(len(tree1a),len(tree1),'/1')
+            if len(tree1a)==len(tree1):
+                fails+=1
+            tree1=deepcopy(tree1a)
             nsteps1+=1
-                    #print(tree1)
         else:
-            for i in tree2:
-                if i[1]==nsteps2:
-                    tree2+=(onestage(list(i[0]),nsteps2+1,tree2))
+            tree2a=deepcopy(tree2)
+            for count,i in enumerate(list( map(itemgetter(0), tree2a))):
+               
+                fulllist=[eval(n) for n in wordmap[tree2a[count][0]].split(',[')[1:][0].strip('\n').strip(']').split(',')]
+                for x in fulllist:
+                     if not x in list( map(itemgetter(0), tree2a)):
+                         tree2a+=[[x,nsteps2,i]]
+            print(len(tree2a),len(tree2),'/2')
+            if len(tree2a)==len(tree2):
+                fails+=1
+            tree2=deepcopy(tree2a)
             nsteps2+=1
-                    #print(tree2)
-           
-    return nsteps1+nsteps2
+    pathlist=[word1]
+    for c,tree1item in enumerate(list( map(itemgetter(0), tree1))):
+        if tree1item in list( map(itemgetter(0), tree2)):
+            pathlist+=[wordmap[tree1item].split(',')[0]]
+            break
+    return nsteps1+nsteps2-2, pathlist
 
         
     
@@ -69,7 +75,6 @@ def onestage(word,n,tr_prev):
     for i in dictn:
         if diffby1(i,w):
             if not i in list( map(itemgetter(0), tr_prev )):
-                #print(i)
                 tree+=([[i,n]])
     return tree
             
