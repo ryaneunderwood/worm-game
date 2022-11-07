@@ -15,6 +15,7 @@ class Game extends Phaser.Scene {
 	this.count = 0;
         this.VICTORY = 0;
         this.complaint_counter = 0;
+        this.freeplay = 0;
 	
 	this.sound_toggle;
 	this.bgm;
@@ -69,6 +70,7 @@ class Game extends Phaser.Scene {
 
 	this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 	this.return_key.on('down', function (event) {
+                    if (this.freeplay == 0) {
                     if (this.VICTORY==0) {
 		    let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
 		    if (this.check_word(input_word) && this.check_word_English(input_word) && !this.check_victory(input_word)) {
@@ -106,6 +108,35 @@ class Game extends Phaser.Scene {
                                     this.score_counter.setText(complain_string);
                                 }
                                 this.complaint_counter++;
+                        }
+                        } else if (this.freeplay == 1) {
+                            let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
+                            if (!this.check_word_English(input_word)){ 
+			        this.shake_input.shake();
+			        this.error_msg.setText("This is not an English word");
+			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
+                            } else {
+                                this.start_word = input_word;
+	                        this.prev_word.setText(this.start_word);
+	                        this.word_history.setText("> "+this.start_word);
+                                this.freeplay = 2;
+                                this.error_msg.setText("Enter goal word.");
+                                }
+                        } else if (this.freeplay == 2) {
+                            let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
+                            if (!this.check_word_English(input_word)){ 
+			        this.shake_input.shake();
+			        this.error_msg.setText("This is not an English word");
+			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
+                            } else {
+                                if (input_word == this.start_word) {
+                                    this.shake_input.shake();
+                                    this.error_msg.setText("Goal word cannot be starting word.");
+                                    } else {
+	                                this.goal_word.setText(input_word);
+                                        this.freeplay = 0;
+                                    }
+                                }
                         }
 		}, this);
 
@@ -173,6 +204,7 @@ class Game extends Phaser.Scene {
 	    this.count = 0;
             this.VICTORY = 0;
             this.complaint_counter = 0;
+            this.freeplay = 0;
 	    this.score_counter.setText("0");
 	    this.goal_word.setText("END"); //New end word
 	}, this);
@@ -190,6 +222,7 @@ class Game extends Phaser.Scene {
 	    this.count = 0;
             this.VICTORY = 0;
             this.complaint_counter = 0;
+            this.freeplay = 0;
 	    this.score_counter.setText("0");
 	    this.goal_word.setText(DAILY_GOAL_WORD); //New end word
 	}, this);
@@ -200,27 +233,12 @@ class Game extends Phaser.Scene {
 	this.free_play.setOrigin(1,0);
         this.free_play.setInteractive();
 	this.free_play.on('pointerdown',function(event){
-            this.error_msg.setText("");
-            let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-            let test = input_word.split(" ");
-            if (test.length != 2) {
-                this.shake_input.shake();
-                this.error_msg.setText("Input two words for Free Play.");
-            } else {
-                if (this.check_word_English(test[0]) && this.check_word_English(test[1])) {
-    	            this.start_word = test[0];
-    	            this.prev_word.setText(test[0]);
-    	            this.word_history.setText("> "+this.start_word);
-    	            this.count = 0;
-                    this.VICTORY = 0;
-                    this.complaint_counter = 0;
-    	            this.score_counter.setText("0");
-    	            this.goal_word.setText(test[1]); //New end word
-                } else {
-                    this.shake_input.shake();
-                    this.error_msg.setText("Inputs words invalid.");
-                }
-            }
+            this.error_msg.setText("Enter starting word.");
+    	    this.count = 0;
+            this.VICTORY = 0;
+            this.complaint_counter = 0;
+            this.freeplay = 1;
+    	    this.score_counter.setText("0");
 	}, this);
     }
     
