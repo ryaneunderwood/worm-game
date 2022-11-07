@@ -1,7 +1,7 @@
 from operator import itemgetter
 from copy import deepcopy
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-wordmap = (open("wordmap10p.txt").readlines())
+wordmap = (open("word_graph.txt").readlines())
 LW = (open("legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
@@ -34,7 +34,7 @@ def check_tree_len(word1,word2):
         if len(tree1)<=len(tree2):
             tree1a=deepcopy(tree1)
             for count,i in enumerate(list( map(itemgetter(0), tree1a))):                
-                fulllist=[eval(n) for n in wordmap[tree1a[count][0]].split(',[')[1:][0].strip('\n').strip(']').split(',')]
+                fulllist=[eval(n) for n in wordmap[tree1a[count][0]].split(':[')[1:][0].strip('\n').strip(']').split(',')]
                 for x in fulllist:
                     if not x in list( map(itemgetter(0), tree1a)):
                         tree1a+=[[x,nsteps1,i]]
@@ -47,7 +47,7 @@ def check_tree_len(word1,word2):
             tree2a=deepcopy(tree2)
             for count,i in enumerate(list( map(itemgetter(0), tree2a))):
                
-                fulllist=[eval(n) for n in wordmap[tree2a[count][0]].split(',[')[1:][0].strip('\n').strip(']').split(',')]
+                fulllist=[eval(n) for n in wordmap[tree2a[count][0]].split(':[')[1:][0].strip('\n').strip(']').split(',')]
                 for x in fulllist:
                      if not x in list( map(itemgetter(0), tree2a)):
                          tree2a+=[[x,nsteps2,i]]
@@ -59,7 +59,7 @@ def check_tree_len(word1,word2):
     pathlist=[word1]
     for c,tree1item in enumerate(list( map(itemgetter(0), tree1))):
         if tree1item in list( map(itemgetter(0), tree2)):
-            pathlist+=[wordmap[tree1item].split(',')[0]]
+            pathlist+=[wordmap[tree1item].split(':')[0]]
             break
     return nsteps1+nsteps2-2, pathlist
 
