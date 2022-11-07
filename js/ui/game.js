@@ -135,6 +135,7 @@ class Game extends Phaser.Scene {
                                     } else {
 	                                this.goal_word.setText(input_word);
                                         this.freeplay = 0;
+                                        this.error_msg.setText("");
                                     }
                                 }
                         }
