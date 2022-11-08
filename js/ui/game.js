@@ -126,8 +126,15 @@ class Game extends Phaser.Scene {
 		} else if (this.freeplay_stage == FREEPLAY_STAGES["second_word"]) {
 			if (input_word == this.start_word) {
 				this.shake_input.shake();
-				this.error_msg.setText("Goal word cannot be starting word.");
+				this.error_msg.setText("Goal word cannot be starting word, try again.");
+				return;
+			}
+			let word_path = calc_word_path(this.start_word,input_word,this.word_array,this.word_graph);
+			console.log(word_path)
+			if (word_path.length == 0) { // If no valid path between given words
+				this.error_msg.setText("No possible path to this word, try again.");
 			} else {
+				this.word_path = word_path;
 				this.goal_word.setText(input_word);
 				this.freeplay_stage = FREEPLAY_STAGES["none"];
 				this.error_msg.setText("");

@@ -6,8 +6,8 @@ function get_start_word(start_words) {
 
 // Generate the path from word1 to word2
 function calc_word_path(word1, word2, word_array, word_graph) {
-	let idx1 = word_array.indexOf(word1); // Use indices of each word instead of strings
-	let idx2 = word_array.indexOf(word2);
+	let idx1 = word_array.indexOf(word1.toLowerCase()); // Use indices of each word instead of strings
+	let idx2 = word_array.indexOf(word2.toLowerCase());
 	word_path = calc_word_path_linked_list(idx1, idx2, word_graph); // Returns a linked list of nodes
 	if (word_path.idx == idx1) // If index of last node is starting index, no valid path
 		return [];
