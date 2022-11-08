@@ -109,6 +109,7 @@ class Game extends Phaser.Scene {
 	handle_press_enter() {
 		// If not an English word
 		let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
+                this.input_box.getChildByName("input_word").value = "";
 		if (!this.check_word_in_dictionary(input_word)){
 			this.display_error_message(`${input_word} is not an English word!`);
 			return;
