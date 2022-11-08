@@ -70,14 +70,14 @@ def check_tree_len(word1,word2):
     tree1items=[item[0] for item in tree1]
     tree2items=[item[0] for item in tree2]
     while t1idx>0:
-        print(len(tree1),t1idx)
+        
         pathlist.insert(0, tree1[tree1items.index(t1idx)][0])
         t1idx=tree1[tree1items.index(t1idx)][2]
     while t2idx>0:
-        print(len(tree2),t2idx)
+        
         pathlist+=[tree2[tree2items.index(t2idx)][0]]
         t2idx=tree2[tree2items.index(t2idx)][2]   
-    print(pathlist)
+    
     pathwords=[sortedDict[item] for item in pathlist]
     return nsteps1+nsteps2-2, pathwords
 
