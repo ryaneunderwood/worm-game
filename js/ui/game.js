@@ -2,6 +2,11 @@ class Game extends Phaser.Scene {
 
     constructor() {
 	super('game');
+
+	this.word_array;
+	this.word_graph;
+	this.start_words_array;
+
 	this.start_word;
 	this.prev_word;
 	this.goal_word;
@@ -12,10 +17,10 @@ class Game extends Phaser.Scene {
 	this.shake_input;
 	this.enter_key;
 	
-	this.count = 0;
-	this.VICTORY = false;
-	this.complaint_counter = 0;
-	this.freeplay_stage = FREEPLAY_STAGES["none"];
+	this.count;
+	this.VICTORY;
+	this.complaint_counter;
+	this.freeplay_stage;
 	
 	this.sound_toggle;
 	this.bgm;
@@ -51,7 +56,8 @@ class Game extends Phaser.Scene {
 		this.bgm = this.sound.add("boar_game_music", {loop : true});
 		this.bgm.play();
 
-		this.start_word = "START";
+		this.generate_puzzle();
+		this.reset_game_state();
     }
 
 	// Add a text element with some default settings
@@ -70,8 +76,23 @@ class Game extends Phaser.Scene {
 		this.complaint_counter = 0;
 		this.freeplay_stage = FREEPLAY_STAGES["none"];
 		this.score_counter.setText("0");
-		this.prev_word.setText(this.start_word);
-		this.word_history.setText("> "+this.start_word);
+		this.prev_word.setText(this.start_word.toUpperCase());
+		this.word_history.setText("> "+this.start_word.toUpperCase());
+	}
+
+	// Generate new puzzle
+	generate_puzzle() {
+		this.start_word = get_start_word(this.start_words_array);
+		let new_path = [];
+		new_path = generate_random_word_path(this.start_word,MIN_PATH_LENGTH,MAX_PATH_LENGTH,this.word_array,this.word_graph);
+		while (new_path.length < MIN_PATH_LENGTH) {
+			new_path = generate_random_word_path(this.start_word,MIN_PATH_LENGTH,MAX_PATH_LENGTH,this.word_array,this.word_graph);
+			if (new_path.length == 0)
+				this.start_word = get_start_word(this.start_words_array);
+		}
+		this.start_word = new_path[0]; //New start word
+		this.goal_word.setText(new_path[new_path.length-1].toUpperCase()); //New end word
+		console.log(`Solution: ${new_path}`);
 	}
 
 	// Display the error message with some default settings
@@ -171,7 +192,7 @@ class Game extends Phaser.Scene {
     
 	// Check if the word is in the dictionary
     check_word_in_dictionary(input_word) {
-	    if(this.words_array.includes(input_word.toLowerCase()) ) {
+	    if(this.word_array.includes(input_word.toLowerCase()) ) {
 	        return true;
 	    }
     }
@@ -241,8 +262,7 @@ class Game extends Phaser.Scene {
 		this.restart.setOrigin(0,0);
 		this.restart.setInteractive();
 		this.restart.on('pointerdown',function (event) {
-			this.start_word = "START" //New start word
-			this.goal_word.setText("END");
+			this.generate_puzzle();
 			this.reset_game_state();
 		}, this);
 
@@ -256,8 +276,7 @@ class Game extends Phaser.Scene {
 		this.regular.setOrigin(0,0);
 		this.regular.setInteractive();
 		this.regular.on('pointerdown',function(event){
-			this.start_word = "START";
-			this.goal_word.setText("END");
+			this.generate_puzzle();
 			this.reset_game_state();
 		}, this);
 
@@ -287,8 +306,28 @@ class Game extends Phaser.Scene {
 	// Load dictionary as array
 	load_dictionary() {
 	    let cache = this.cache.text;
-	    let words_str= cache.get('legal_words');
-	    this.words_array = words_str.replaceAll('\r','').split('\n');
+	    let file_str = cache.get('word_graph');
+		let file_lines = file_str.replaceAll('\r','').split('\n');
+
+		this.word_array = [];
+		this.word_graph = [];
+		for (let i = 0; i < file_lines.length; i++) {
+			let line_array = file_lines[i].split(",");
+			this.word_array.push(line_array[0]);
+			let neighbors_array = line_array.slice(1);
+			if (neighbors_array[0].length > 0)
+				this.word_graph.push(neighbors_array.map(Number));
+			else
+				this.word_graph.push([]);
+		}
+
+		this.start_words_array = [];
+		for (let i = 0; i < this.word_array.length; i++) {
+			if (this.word_array[i].length >= MIN_START_WORD_LENGTH
+				&& this.word_array[i].length <= MAX_START_WORD_LENGTH
+				&& this.word_graph[i].length >= 3)
+				this.start_words_array.push(this.word_array[i]);
+		}
     }
 
 	load_complaints() {                

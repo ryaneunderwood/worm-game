@@ -15,15 +15,15 @@ class Boot extends Phaser.Scene {
 		this.load.audio('boar_game_music', ['assets/boar_game.mp3']);
 		this.load.plugin('rexshakepositionplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexshakepositionplugin.min.js', true);
 		this.load.html("form", "html/form.html");
-	        this.load.text('legal_words', '../utils/legal_words.txt');
-	        this.load.text('word_graph','../utils/word_graph.txt');
+	    this.load.text('legal_words', 'assets/legal_words.txt');
+	    this.load.text('word_graph', 'assets/word_graph.txt');
 	}
 
 
     create () {
-	let scene = this.scene;
-	// Start the actual game!
-	scene.start('game');
+		let scene = this.scene;
+		// Start the actual game!
+		scene.start('game');
     }
 
 }
