@@ -2,7 +2,7 @@ from operator import itemgetter
 from copy import deepcopy
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
 wordmap = (open("word_graph_old.txt").readlines())
-LW = (open("legal_words.txt").readlines())
+LW = (open("../assets/legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
     L[i]=LW[i].strip('\n')
@@ -34,11 +34,13 @@ def check_tree_len(word1,word2):
         if len(tree1)<=len(tree2):
             tree1a=deepcopy(tree1)
             for count,i in enumerate(list( map(itemgetter(0), tree1a))):                
-                fulllist=[eval(n) for n in wordmap[tree1a[count][0]].split(':[')[1:][0].strip('\n').strip(']').split(',')]
+                try: fulllist=[eval(n) for n in wordmap[tree1a[count][0]].split(':[')[1:][0].strip('\n').strip(']').split(',')]
+                except:
+                    return -1
                 for x in fulllist:
                     if not x in list( map(itemgetter(0), tree1a)):
                         tree1a+=[[x,nsteps1,i]]
-            print(len(tree1a),len(tree1),'/1')
+            
             if len(tree1a)==len(tree1):
                 fails+=1
             tree1=deepcopy(tree1a)
@@ -51,17 +53,33 @@ def check_tree_len(word1,word2):
                 for x in fulllist:
                      if not x in list( map(itemgetter(0), tree2a)):
                          tree2a+=[[x,nsteps2,i]]
-            print(len(tree2a),len(tree2),'/2')
+            
             if len(tree2a)==len(tree2):
                 fails+=1
             tree2=deepcopy(tree2a)
             nsteps2+=1
-    pathlist=[word1]
+    pathlist=[]
     for c,tree1item in enumerate(list( map(itemgetter(0), tree1))):
         if tree1item in list( map(itemgetter(0), tree2)):
-            pathlist+=[wordmap[tree1item].split(':')[0]]
+            
+            pathlist+=[tree1item]
             break
-    return nsteps1+nsteps2-2, pathlist
+    
+    t1idx=tree1[list( map(itemgetter(0), tree1)).index(tree1item)][2]
+    t2idx=tree2[list( map(itemgetter(0), tree2)).index(tree1item)][2]
+    tree1items=[item[0] for item in tree1]
+    tree2items=[item[0] for item in tree2]
+    while t1idx>0:
+        print(len(tree1),t1idx)
+        pathlist.insert(0, tree1[tree1items.index(t1idx)][0])
+        t1idx=tree1[tree1items.index(t1idx)][2]
+    while t2idx>0:
+        print(len(tree2),t2idx)
+        pathlist+=[tree2[tree2items.index(t2idx)][0]]
+        t2idx=tree2[tree2items.index(t2idx)][2]   
+    print(pathlist)
+    pathwords=[sortedDict[item] for item in pathlist]
+    return nsteps1+nsteps2-2, pathwords
 
         
     
@@ -118,5 +136,14 @@ def diffby1(string1,string2):
            if "".join(l1)==string2:
                return True
         return False
-
-print(check_tree_len("hell","bore"))
+def calc_one_word(query_word, query_word_idx, graph_dict, dictn, dictn_idx):
+    query_word_str="".join(query_word)
+    if query_word_str not in graph_dict:
+        graph_dict[query_word_str] = []
+    for i in range(len(dictn))[query_word_idx-dictn_idx:]:
+        word2 = dictn[i]
+        if diffby1(query_word_str,word2):
+            graph_dict[query_word_str].append(dictn_idx+i)
+            if word2 not in graph_dict:
+                graph_dict[word2] = []
+            graph_dict[word2].append(query_word_idx)
