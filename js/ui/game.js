@@ -10,6 +10,7 @@ class Game extends Phaser.Scene {
 	this.start_word;
 	this.prev_word;
 	this.goal_word;
+	this.word_path;
 	this.score_counter;
 	this.word_history;
 		
@@ -92,6 +93,7 @@ class Game extends Phaser.Scene {
 		}
 		this.start_word = new_path[0]; //New start word
 		this.goal_word.setText(new_path[new_path.length-1].toUpperCase()); //New end word
+		this.word_path = new_path;
 		console.log(`Solution: ${new_path}`);
 	}
 
@@ -138,7 +140,7 @@ class Game extends Phaser.Scene {
 				let complain_string = this.complaints_array.at(this.complaint_counter);
 				this.score_counter.setText(complain_string);
 			} else {
-				let complain_string = 'YOU WIN, PLAY AGAIN';
+				let complain_string = `YOU WON IN ${this.count}, PLAY AGAIN`;
 				this.score_counter.setText(complain_string);
 			}
 			this.complaint_counter++;
@@ -156,8 +158,11 @@ class Game extends Phaser.Scene {
 				if (this.word_history.displayHeight > HISTORY_BOX_H)
 					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
 			} else {
-				this.score_counter.setText(`YOU WIN IN ${++this.count}`);
+				this.error_msg.setText(`The shortest possible path is ${this.word_path.length-1} steps.`);
+				this.score_counter.setText(`WIN IN ${++this.count}!`);
 				this.VICTORY = true;
+				this.prev_word.setText("");
+				this.goal_word.setText("");
 			}
 		}
 	}
