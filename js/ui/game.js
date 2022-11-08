@@ -166,7 +166,9 @@ class Game extends Phaser.Scene {
 				if (this.word_history.displayHeight > HISTORY_BOX_H)
 					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
 			} else {
-				this.error_msg.setText(`The shortest possible path is ${this.word_path.length-1} steps.`);
+			        let word_pathd = calc_word_path(this.start_word,input_word,this.word_array,this.word_graph)
+			    
+				this.error_msg.setText(`The shortest possible path is ${word_pathd.length-1} steps.`);
 				this.score_counter.setText(`WIN IN ${++this.count}!`);
 				this.VICTORY = true;
 				this.prev_word.setText("");
@@ -297,10 +299,11 @@ class Game extends Phaser.Scene {
 		this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY CHALLENGE",WORD_FONTSIZE,COLOR_GREEN);
 		this.daily_challenge.setOrigin(0.5,0);
 		this.daily_challenge.setInteractive();
-		this.daily_challenge.on('pointerdown',function(event){
+	        this.daily_challenge.on('pointerdown',function(event){
 			this.start_word = DAILY_START_WORD;
 			this.goal_word.setText(DAILY_GOAL_WORD);
-			this.reset_game_state();
+		        this.reset_game_state();
+		               
 		}, this);
 
 		//Free Play. Start and ends goal words are chosen by the user.
