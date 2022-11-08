@@ -10,12 +10,12 @@ class Game extends Phaser.Scene {
 		
 	this.input_box;
 	this.shake_input;
-	this.return_key;
+	this.enter_key;
 	
 	this.count = 0;
-        this.VICTORY = 0;
-        this.complaint_counter = 0;
-        this.freeplay = 0;
+	this.VICTORY = false;
+	this.complaint_counter = 0;
+	this.freeplay_stage = FREEPLAY_STAGES["none"];
 	
 	this.sound_toggle;
 	this.bgm;
@@ -30,129 +30,194 @@ class Game extends Phaser.Scene {
 	}
 
     create() {
-	this.prev_word = this.add.text(PREV_WORD_X,PREV_WORD_Y,"START",
-					       { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
-	this.prev_word.setOrigin(0.5,0.5);
-	this.goal_word = this.add.text(GOAL_WORD_X,GOAL_WORD_Y,"END",
-					       { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
-	this.goal_word.setOrigin(0.5,0.5);
-	this.score_counter = this.add.text(SCORE_X,SCORE_Y,"0",
-						   { fontSize: WORD_FONTSIZE, fontFamily: "monospace"}).setResolution(RESOLUTION);
-	this.score_counter.setOrigin(0.5,0.5);
-	
-	this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
-	this.input_box.setOrigin(0.5,0.5);
-	this.shake_input = this.plugins.get('rexshakepositionplugin').add(this.input_box, {
-		    duration: 100,
-		    magnitude: 15
-		});
-		
-	this.word_history = this.add.text(HISTORY_BOX_X,HISTORY_BOX_Y,"", 
-						  { fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 400 , useAdvancedWrap: true}}).setResolution(RESOLUTION);
-	this.word_history.setText("> "+this.prev_word.text);
+		//------ Load game elements -----//
+		this.load_text();
+		this.load_dictionary();
+		this.load_complaints();
+		this.load_interactive();
 
-	this.error_msg = this.add.text(ERROR_BOX_X, ERROR_BOX_Y,"", { fontSize: HISTORY_BOX_FONTSIZE, fontFamily: "monospace", wordWrap: { width: 500 , useAdvancedWrap: true}}).setResolution(RESOLUTION);
-	
-	
-	var graphics = this.make.graphics();
-	graphics.fillRect(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H);
-	var history_mask = new Phaser.Display.Masks.GeometryMask(this, graphics);
-	this.word_history.setMask(history_mask);
-	var history_zone = this.add.zone(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H).setOrigin(0).setInteractive();
-	
+		//------ Misc loading -----------//
+		// Add shake behavior
+		this.shake_input = this.plugins.get('rexshakepositionplugin').add(this.input_box, {
+			duration: 100,
+			magnitude: 15
+		});		
+
+		// Add enter key press listener
+		this.enter_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+		this.enter_key.on('down', this.handle_press_enter, this);
+
+		// Add music
+		this.bgm = this.sound.add("boar_game_music", {loop : true});
+		this.bgm.play();
+
+		this.start_word = "START";
+    }
+
+	// Add a text element with some default settings
+	add_text(x, y, text_str, fontsize, color = "#FFFFFF") {
+		let new_text = this.add.text(x, y, text_str,
+			{ fontSize: fontsize, fontFamily: "monospace", color: color}).setResolution(RESOLUTION);
+		new_text.setOrigin(0.5,0.5);
+		return new_text;
+	}
+
+	// Reset game variables
+	reset_game_state() {
+		this.error_msg.setText("");
+		this.count = 0;
+		this.VICTORY = false;
+		this.complaint_counter = 0;
+		this.freeplay_stage = FREEPLAY_STAGES["none"];
+		this.score_counter.setText("0");
+		this.prev_word.setText(this.start_word);
+		this.word_history.setText("> "+this.start_word);
+	}
+
+	// Display the error message with some default settings
+	display_error_message(error_str) {
+		this.shake_input.shake();
+		let prev_msg = this.error_msg.text;
+		this.error_msg.setText(error_str);
+		this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText(prev_msg)}, [], this); 
+	}
+
+	// Do some stuff when enter is pressed on the input box
+	handle_press_enter() {
+		// If not an English word
+		let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
+		if (!this.check_word_in_dictionary(input_word)){
+			this.display_error_message(`${input_word} is not an English word!`);
+			return;
+		}
+
+		// Entering the first word for freeplay mode
+		if (this.freeplay_stage == FREEPLAY_STAGES["first_word"]) {
+			this.start_word = input_word;
+			this.prev_word.setText(this.start_word);
+			this.word_history.setText("> "+this.start_word);
+			this.freeplay_stage = FREEPLAY_STAGES["second_word"];
+			this.error_msg.setText("Enter goal word.");
+
+		// Entering the second word for freeplay mode
+		} else if (this.freeplay_stage == FREEPLAY_STAGES["second_word"]) {
+			if (input_word == this.start_word) {
+				this.shake_input.shake();
+				this.error_msg.setText("Goal word cannot be starting word.");
+			} else {
+				this.goal_word.setText(input_word);
+				this.freeplay_stage = FREEPLAY_STAGES["none"];
+				this.error_msg.setText("");
+			}
+
+		// Victory!
+		} else if (this.VICTORY) {
+			this.shake_input.shake();
+			if (this.complaint_counter < this.complaints_array.length) {
+				let complain_string = this.complaints_array.at(this.complaint_counter);
+				this.score_counter.setText(complain_string);
+			} else {
+				let complain_string = 'YOU WIN, PLAY AGAIN';
+				this.score_counter.setText(complain_string);
+			}
+			this.complaint_counter++;
+
+		// Normal play
+		} else {
+			if (!this.check_word_off_by_one(input_word)) {
+				this.display_error_message(`${input_word} is not off by one letter!`);
+				return;
+			}
+			this.word_history.text = this.word_history.text + "\n> " + input_word;
+			this.prev_word.setText(input_word);
+			if (!this.check_victory(input_word)) {
+				this.score_counter.setText(++this.count);
+				if (this.word_history.displayHeight > HISTORY_BOX_H)
+					this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+			} else {
+				this.score_counter.setText(`YOU WIN IN ${++this.count}`);
+				this.VICTORY = true;
+			}
+		}
+	}
+
+	// Check if the word is off by one letter from prev word
+	check_word_off_by_one(input_word) {
+	    let prev_word = this.prev_word.text;
+		// Basic checks before the letter loop
+		if(input_word.length == 0 || 
+		   input_word === prev_word || 
+		   Math.abs(input_word.length - prev_word.length)>=2 ) {
+		    return false;
+		}
+
+		// Loop through each letter of input word
+	    for (let i = 0; i < input_word.length; i++) {
+			// Break if input word equals the prev word plus one letter at the end
+			if (i >= prev_word.length)
+				break;
+			// Once a discrepancy is found, check if the remaining parts of the words are identical
+			if (input_word[i] !== prev_word[i]) {
+				if (input_word.length == prev_word.length)
+					return input_word.substring(i+1) === prev_word.substring(i+1);
+				else if (input_word.length < prev_word.length)
+					return input_word.substring(i) === prev_word.substring(i+1);
+				else if (input_word.length > prev_word.length)
+					return input_word.substring(i+1) === prev_word.substring(i);
+			}
+	    }
+	    return true;
+	}
+    
+	// Check if the word is in the dictionary
+    check_word_in_dictionary(input_word) {
+	    if(this.words_array.includes(input_word.toLowerCase()) ) {
+	        return true;
+	    }
+    }
+
+	// Check if the victory condition has been met
+	check_victory(input_word) {
+			let goal_word = this.goal_word.text;
+			if(input_word == goal_word) {
+					return true
+			}
+	}
+
+	// Load text objects
+	load_text() {
+		this.prev_word = this.add_text(PREV_WORD_X,PREV_WORD_Y,"START",WORD_FONTSIZE);
+		this.goal_word = this.add_text(GOAL_WORD_X,GOAL_WORD_Y,"END",WORD_FONTSIZE);
+		this.score_counter = this.add_text(SCORE_X,SCORE_Y,"0",WORD_FONTSIZE);
+		this.word_history = this.add_text(HISTORY_BOX_X,HISTORY_BOX_Y,"> "+this.prev_word.text,HISTORY_BOX_FONTSIZE);
+		this.word_history.setOrigin(0,0);
+		this.error_msg = this.add_text(ERROR_BOX_X,ERROR_BOX_Y,"",HISTORY_BOX_FONTSIZE);
+	}
+
+	// Load interactive elements (buttons, input box, scroll panel)
+	load_interactive() {
+		// Add input box
+		this.input_box = this.add.dom(INPUT_BOX_X, INPUT_BOX_Y).createFromCache("form");
+		this.input_box.setOrigin(0.5,0.5);
+		
+		// Add scroll panel for word_history
+		var graphics = this.make.graphics();
+		graphics.fillRect(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H);
+		var history_mask = new Phaser.Display.Masks.GeometryMask(this, graphics);
+		this.word_history.setMask(history_mask);
+		var history_zone = this.add.zone(HISTORY_BOX_X, HISTORY_BOX_Y, HISTORY_BOX_W, HISTORY_BOX_H).setOrigin(0).setInteractive();	
 		history_zone.on('wheel', function (pointer) {
-		    if (this.word_history.displayHeight > HISTORY_BOX_H) {
-			    this.word_history.y -= (pointer.deltaY / 5);
-			    this.word_history.y = Phaser.Math.Clamp(this.word_history.y, 
+			if (this.word_history.displayHeight > HISTORY_BOX_H) {
+				this.word_history.y -= (pointer.deltaY / 5);
+				this.word_history.y = Phaser.Math.Clamp(this.word_history.y, 
 									HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight, HISTORY_BOX_Y);
 			}
 		}, this);
 
-	this.return_key = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-	this.return_key.on('down', function (event) {
-                    if (this.freeplay == 0) {
-                    if (this.VICTORY==0) {
-		    let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-		    if (this.check_word(input_word) && this.check_word_English(input_word) && !this.check_victory(input_word)) {
-			    this.word_history.text = this.word_history.text + "\n> " + input_word;
-			    this.prev_word.setText(input_word);
-			    this.count++;
-			    this.score_counter.setText(this.count);
-				if (this.word_history.displayHeight > HISTORY_BOX_H) {
-				    this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
-				    //this.word_history.text = this.word_history.text.substring(this.word_history.text.indexOf("\n") + 1);
-				}
-			} else if ((this.check_word(input_word))&& this.check_word_English(input_word) && (this.check_victory(input_word))) {
-				this.word_history.text = this.word_history.text + "\n> " + input_word;
-				this.prev_word.setText(input_word);
-				this.count++;
-                                let victory_string = 'YOU WIN IN ';
-				this.score_counter.setText(victory_string.concat(this.count));
-                                this.VICTORY = 1;
-		        } else if (!this.check_word_English(input_word)){
-			        this.shake_input.shake();
-			        this.error_msg.setText("This is not an English word");
-			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
-		        } else {
-			        this.shake_input.shake();
-			        this.error_msg.setText("This is not a permitted word");
-			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this);    
-		        } 
-                        } else {
-                                this.shake_input.shake();
-                                if (this.complaint_counter < this.arrayComplaints.length) {
-                                    let complain_string = this.arrayComplaints.at(this.complaint_counter);
-                                    this.score_counter.setText(complain_string);
-                                } else {
-                                    let complain_string = 'YOU WIN, PLAY AGAIN';
-                                    this.score_counter.setText(complain_string);
-                                }
-                                this.complaint_counter++;
-                        }
-                        } else if (this.freeplay == 1) {
-                            let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-                            if (!this.check_word_English(input_word)){ 
-			        this.shake_input.shake();
-			        this.error_msg.setText("This is not an English word");
-			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
-                            } else {
-                                this.start_word = input_word;
-	                        this.prev_word.setText(this.start_word);
-	                        this.word_history.setText("> "+this.start_word);
-                                this.freeplay = 2;
-                                this.error_msg.setText("Enter goal word.");
-                                }
-                        } else if (this.freeplay == 2) {
-                            let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
-                            if (!this.check_word_English(input_word)){ 
-			        this.shake_input.shake();
-			        this.error_msg.setText("This is not an English word");
-			        this.timedEvent = this.time.delayedCall(2000, function (event) {this.error_msg.setText("")}, [], this); 
-                            } else {
-                                if (input_word == this.start_word) {
-                                    this.shake_input.shake();
-                                    this.error_msg.setText("Goal word cannot be starting word.");
-                                    } else {
-	                                this.goal_word.setText(input_word);
-                                        this.freeplay = 0;
-                                        this.error_msg.setText("");
-                                    }
-                                }
-                        }
-		}, this);
-
-	this.loadWords();
-        this.loadComplaints();
-
-	//Mute button
-
-		this.bgm = this.sound.add("boar_game_music", {loop : true});
-		this.bgm.play();
-
-		this.sound_toggle = this.add.text(SOUND_TOGGLE_X, SOUND_TOGGLE_Y, "SOUND", 
-	                { fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#ff0000"}).setResolution(RESOLUTION);
+		//Sound button. Toggles mute.
+		this.sound_toggle = this.add_text(SOUND_TOGGLE_X,SOUND_TOGGLE_Y,"SOUND",WORD_FONTSIZE,COLOR_RED);
 		this.sound_toggle.setOrigin(1,0);
-                this.sound_toggle.setInteractive();
+		this.sound_toggle.setInteractive();
 		this.sound_toggle.on('pointerdown', function (event) {
 			if (!this.bgm.mute) {
 				this.bgm.mute = true;
@@ -163,131 +228,71 @@ class Game extends Phaser.Scene {
 			}
 		}, this);
 
-	//Reset button. This will clear the word history and word count while retaining the same start and end word.
-	this.reset = this.add.text(RESET_X, RESET_Y, "RESET",
-				   {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(RESOLUTION);
-        this.reset.setOrigin(0,0);                           
-	this.reset.setInteractive();
-	this.reset.on('pointerdown',function(event){
-	    this.prev_word.setText(this.start_word);
-	    this.word_history.setText("> "+this.start_word);
-	    this.count = 0;
-	    this.score_counter.setText("0");
-	}, this);
+		//Reset button. This will clear the word history and word count while retaining the same start and end word.
+		this.reset = this.add_text(RESET_X,RESET_Y,"RESET",WORD_FONTSIZE,COLOR_RED);
+		this.reset.setOrigin(0,0);                           
+		this.reset.setInteractive();
+		this.reset.on('pointerdown',function (event) {
+			this.reset_game_state();
+		}, this);
 
-	//New game button
-	this.restart = this.add.text(RESTART_X, RESTART_Y, "NEW GAME",
-				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: "#ff0000"}).setResolution(RESOLUTION);
-        this.restart.setOrigin(0,0);
-	this.restart.setInteractive();
-	this.restart.on('pointerdown',function(event){
-	    this.start_word = "START" //New start word
-	    this.prev_word.setText(this.start_word);
-	    this.word_history.setText("> "+this.start_word);
-	    this.count = 0;
-            this.VICTORY = 0;
-            this.complaint_counter = 0;
-	    this.score_counter.setText("0");
-	    this.goal_word.setText("END"); //New end word
-	}, this);
+		//New game button.
+		this.restart = this.add_text(RESTART_X,RESTART_Y,"NEW GAME",WORD_FONTSIZE,COLOR_RED);
+		this.restart.setOrigin(0,0);
+		this.restart.setInteractive();
+		this.restart.on('pointerdown',function (event) {
+			this.start_word = "START" //New start word
+			this.goal_word.setText("END");
+			this.reset_game_state();
+		}, this);
 
-	//---------------- Add game modes-------------------------
-	//Regular mode. This is the default mode where start and goal words are picked from the dictionary.
-	this.regular = this.add.text(GMODE1_X, GMODE1_Y, "REGULAR",
-				     {fontSize: WORD_FONTSIZE, fontFamily: "monospace", color: "#00ff00"}).setResolution(RESOLUTION);
-	this.regular.setOrigin(0,0);
-        this.regular.setInteractive();
-	this.regular.on('pointerdown',function(event){
-	    this.error_msg.setText("");
-            this.start_word = "START";
-	    this.prev_word.setText(this.start_word);
-	    this.word_history.setText("> "+this.start_word);
-	    this.count = 0;
-            this.VICTORY = 0;
-            this.complaint_counter = 0;
-            this.freeplay = 0;
-	    this.score_counter.setText("0");
-	    this.goal_word.setText("END"); //New end word
-	}, this);
-
-	//Daily challenge. The start and goal words are set by the developers in game_mode_settings.js
-	this.daily_challenge = this.add.text(GMODE2_X, GMODE2_Y, "DAILY CHALLENGE",
-					     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: '#00ff00'}).setResolution(RESOLUTION);
-	this.daily_challenge.setOrigin(0.5,0);
-	this.daily_challenge.setInteractive();
-        this.daily_challenge.on('pointerdown',function(event){
-	    this.error_msg.setText("");
-            this.start_word = DAILY_START_WORD;
-	    this.prev_word.setText(this.start_word);
-	    this.word_history.setText("> "+this.start_word);
-	    this.count = 0;
-            this.VICTORY = 0;
-            this.complaint_counter = 0;
-            this.freeplay = 0;
-	    this.score_counter.setText("0");
-	    this.goal_word.setText(DAILY_GOAL_WORD); //New end word
-	}, this);
-
-	//Free Play. Start and ends goal words are chosen by the user.
-	this.free_play = this.add.text(GMODE3_X, GMODE3_Y, "FREE PLAY",
-					     {fontSize: WORD_FONTSIZE, fontFamily: "monospace",color: '#00ff00'}).setResolution(RESOLUTION);
-	this.free_play.setOrigin(1,0);
-        this.free_play.setInteractive();
-	this.free_play.on('pointerdown',function(event){
-            this.error_msg.setText("Enter starting word.");
-    	    this.count = 0;
-            this.VICTORY = 0;
-            this.complaint_counter = 0;
-            this.freeplay = 1;
-    	    this.score_counter.setText("0");
-	}, this);
-    }
-    
-	check_word(input_word) {
-	    let prev_word = this.prev_word.text;
-		if(input_word.length == 0 || 
-		   input_word === prev_word || 
-		   Math.abs(input_word.length - prev_word.length)>=2 ) {
-		    return false;
-		}
-
-	    for (let i = 0; i < input_word.length; i++) {
-		if (i >= prev_word.length)
-		    break;
-		
-		if (input_word[i] !== prev_word[i]) {
-		    if (input_word.length == prev_word.length)
-			return input_word.substring(i+1) === prev_word.substring(i+1);
-		    else if (input_word.length < prev_word.length)
-			return input_word.substring(i) === prev_word.substring(i+1);
-		    else if (input_word.length > prev_word.length)
-			return input_word.substring(i+1) === prev_word.substring(i);
-		}
-	    }
-	    return true;
+		this.load_gamemodes();
 	}
-    
-        check_word_English(input_word) {
-	    if(this.arrayWords.includes(input_word.toLowerCase()) ) {
-	        return true;
-	    }
-        }
 
-        loadWords() {
+	// Load game mode buttons
+	load_gamemodes() {
+		//Regular mode. This is the default mode where start and goal words are picked from the dictionary.
+		this.regular = this.add_text(GMODE1_X,GMODE1_Y,"REGULAR",WORD_FONTSIZE,COLOR_GREEN);
+		this.regular.setOrigin(0,0);
+		this.regular.setInteractive();
+		this.regular.on('pointerdown',function(event){
+			this.start_word = "START";
+			this.goal_word.setText("END");
+			this.reset_game_state();
+		}, this);
+
+		//Daily challenge. The start and goal words are set by the developers in game_mode_settings.js
+		this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY CHALLENGE",WORD_FONTSIZE,COLOR_GREEN);
+		this.daily_challenge.setOrigin(0.5,0);
+		this.daily_challenge.setInteractive();
+		this.daily_challenge.on('pointerdown',function(event){
+			this.start_word = DAILY_START_WORD;
+			this.goal_word.setText(DAILY_GOAL_WORD);
+			this.reset_game_state();
+		}, this);
+
+		//Free Play. Start and ends goal words are chosen by the user.
+		this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_GREEN);
+		this.free_play.setOrigin(1,0);
+		this.free_play.setInteractive();
+		this.free_play.on('pointerdown',function(event){
+			this.start_word = "???";
+			this.goal_word.setText("???");
+			this.reset_game_state();
+			this.error_msg.setText("Enter starting word.");
+			this.freeplay_stage = FREEPLAY_STAGES["first_word"];
+		}, this);
+	}
+
+	// Load dictionary as array
+	load_dictionary() {
 	    let cache = this.cache.text;
-	    let myWords= cache.get('legal_words');
-	    this.arrayWords = myWords.split('\n');
-        }
+	    let words_str= cache.get('legal_words');
+	    this.words_array = words_str.replaceAll('\r','').split('\n');
+    }
 
-        check_victory(input_word) {
-                let goal_word = this.goal_word.text;
-                if(input_word == goal_word) {
-                        return true
-                }
-        }
-
-        loadComplaints(complaint_number) {                
-            this.arrayComplaints = ['WHAT ARE YOU DOING','STOP','PLEASE','CONTROL YOURSELF','HAVE YOU NO SHAME','RESET PLEASE','OR ELSE','','','','HAPPY NOW?','GOODBYE'];
-        }
+	load_complaints() {                
+		this.complaints_array = ['WHAT ARE YOU DOING','STOP','PLEASE','CONTROL YOURSELF','HAVE YOU NO SHAME','RESET PLEASE','OR ELSE','','','','HAPPY NOW?','GOODBYE'];
+	}
 
 }

@@ -1,7 +1,7 @@
 from operator import itemgetter
 from copy import deepcopy
 alphabet=list('abcdefghijklmnopqrstuvwxyz')
-wordmap = (open("word_graph.txt").readlines())
+wordmap = (open("word_graph_old.txt").readlines())
 LW = (open("legal_words.txt").readlines())
 L=LW
 for i in range(len(LW)):
@@ -118,3 +118,5 @@ def diffby1(string1,string2):
            if "".join(l1)==string2:
                return True
         return False
+
+print(check_tree_len("hell","bore"))
