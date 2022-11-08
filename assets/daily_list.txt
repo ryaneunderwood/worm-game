@@ -1,0 +1,15 @@
+sharp,mice,Medium
+talk,isle,Medium
+girl,buoy,Easy
+sleeper,panic,Hard
+cry,head,Easy
+sorrow,road,Hard
+tolled,ohm,Medium
+crank,evil,Hard
+trump,joe,Easy
+call,later,Easy
+sextant,bar,Hard
+hog,plier,Medium
+drama,space,Medium
+lady,gaga,Easy
+panic,disco,Hard
