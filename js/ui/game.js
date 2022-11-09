@@ -57,7 +57,9 @@ class Game extends Phaser.Scene {
 		this.bgm = this.sound.add("boar_game_music", {loop : true});
 		this.bgm.play();
 
-		this.generate_puzzle();
+	        //this.generate_puzzle();
+	        this.start_word = DAILY_START_WORD;
+	        this.goal_word.setText(DAILY_GOAL_WORD);
 		this.reset_game_state();
     }
 
@@ -71,8 +73,8 @@ class Game extends Phaser.Scene {
 
 	// Reset game variables
 	reset_game_state() {
-		this.error_msg.setText("");
-		this.count = 0;
+	    this.error_msg.setText("");
+	    this.count = 0;
 		this.VICTORY = false;
 		this.complaint_counter = 0;
 		this.freeplay_stage = FREEPLAY_STAGES["none"];
@@ -273,7 +275,7 @@ class Game extends Phaser.Scene {
 		}, this);
 
 		//New game button.
-		this.restart = this.add_text(RESTART_X,RESTART_Y,"NEW GAME",WORD_FONTSIZE,COLOR_RED);
+		this.restart = this.add_text(RESTART_X,RESTART_Y,"NEW PUZZLE",WORD_FONTSIZE,COLOR_RED);
 		this.restart.setOrigin(0,0);
 		this.restart.setInteractive();
 		this.restart.on('pointerdown',function (event) {
@@ -287,33 +289,53 @@ class Game extends Phaser.Scene {
 	// Load game mode buttons
 	load_gamemodes() {
 		//Regular mode. This is the default mode where start and goal words are picked from the dictionary.
-		this.regular = this.add_text(GMODE1_X,GMODE1_Y,"REGULAR",WORD_FONTSIZE,COLOR_GREEN);
-		this.regular.setOrigin(0,0);
+	    this.regular = this.add_text(GMODE1_X,GMODE1_Y,"PRACTICE",WORD_FONTSIZE,COLOR_RED);
+	    this.regular.setOrigin(0,0);
 		this.regular.setInteractive();
 		this.regular.on('pointerdown',function(event){
-			this.generate_puzzle();
+		    this.generate_puzzle();
+		    this.regular = this.add_text(GMODE1_X,GMODE1_Y,"PRACTICE",WORD_FONTSIZE,COLOR_GREEN);
+		    this.regular.setOrigin(0,0);
+		    this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY PUZZLE",WORD_FONTSIZE,COLOR_RED);
+		    this.daily_challenge.setOrigin(0.5,0);
+		    this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_RED);
+		    this.free_play.setOrigin(1,0);
 			this.reset_game_state();
 		}, this);
 
 		//Daily challenge. The start and goal words are set by the developers in game_mode_settings.js
-		this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY CHALLENGE",WORD_FONTSIZE,COLOR_GREEN);
+		this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY PUZZLE",WORD_FONTSIZE,COLOR_GREEN);
 		this.daily_challenge.setOrigin(0.5,0);
 		this.daily_challenge.setInteractive();
 	        this.daily_challenge.on('pointerdown',function(event){
 			this.start_word = DAILY_START_WORD;
-			this.goal_word.setText(DAILY_GOAL_WORD);
+		    this.goal_word.setText(DAILY_GOAL_WORD);
+		    this.regular = this.add_text(GMODE1_X,GMODE1_Y,"PRACTICE",WORD_FONTSIZE,COLOR_RED);
+		    this.regular.setOrigin(0,0);
+		    this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY PUZZLE",WORD_FONTSIZE,COLOR_GREEN);
+		    this.daily_challenge.setOrigin(0.5,0);
+		    this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_RED);
+		    this.free_play.setOrigin(1,0);
 		        this.reset_game_state();
 		               
 		}, this);
 
 		//Free Play. Start and ends goal words are chosen by the user.
-		this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_GREEN);
+		this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_RED);
 		this.free_play.setOrigin(1,0);
 		this.free_play.setInteractive();
 		this.free_play.on('pointerdown',function(event){
 			this.start_word = "???";
 			this.goal_word.setText("???");
-			this.reset_game_state();
+		    
+		    this.regular = this.add_text(GMODE1_X,GMODE1_Y,"PRACTICE",WORD_FONTSIZE,COLOR_RED);
+		    this.regular.setOrigin(0,0);
+		    this.daily_challenge = this.add_text(GMODE2_X,GMODE2_Y,"DAILY PUZZLE",WORD_FONTSIZE,COLOR_RED);
+		    this.daily_challenge.setOrigin(0.5,0);
+		    this.free_play = this.add_text(GMODE3_X,GMODE3_Y,"FREE PLAY",WORD_FONTSIZE,COLOR_GREEN);
+		    this.free_play.setOrigin(1,0);
+
+		    this.reset_game_state();
 			this.error_msg.setText("Enter starting word.");
 			this.freeplay_stage = FREEPLAY_STAGES["first_word"];
 		}, this);
