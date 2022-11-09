@@ -30,6 +30,9 @@ const RESET_Y = WINDOW_HEIGHT * 9/10
 const RESTART_X = WINDOW_WIDTH * 0.2/10
 const RESTART_Y = WINDOW_HEIGHT * 9.5/10
 
+const SOLUTION_X = WINDOW_WIDTH * 9.8/10
+const SOLUTION_Y = WINDOW_HEIGHT * 9/10
+
 const RESOLUTION = 5
 
 const GMODE1_X = WINDOW_WIDTH * 0.2/10
@@ -41,6 +44,7 @@ const GMODE3_Y = WINDOW_HEIGHT * 0.2/10
 
 const COLOR_RED = "#ff0000"
 const COLOR_GREEN = "#00ff00"
+const COLOR_BLUE = "#0000ff"
 
 const FREEPLAY_STAGES = {
     none: 0,
