@@ -1,6 +1,7 @@
+busy,carpet,Hard
 sharp,mice,Medium
 turtle,slow,Hard
-talk,isle,Medium
+whisper,bellow,Hard
 girl,buoy,Easy
 sleeper,panic,Expert
 magic,girl,Medium
