@@ -2,6 +2,7 @@ busy,carpet,Hard
 sharp,mice,Medium
 turtle,slow,Hard
 whisper,bellow,Hard
+panic,disco,Hard
 girl,buoy,Easy
 sleeper,panic,Expert
 magic,girl,Medium
@@ -14,8 +15,7 @@ sextant,bar,Hard
 hog,plier,Medium
 drama,space,Medium
 lady,gaga,Easy
-panic,disco,Hard
-stuffing,feast,Exper
+stuffing,feast,Expert
 countless,toles,Hard
 red,yellow,Medium
 green,violet,Hard
