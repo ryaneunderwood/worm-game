@@ -12,7 +12,7 @@ class Boot extends Phaser.Scene {
     
 	// Preload assets from disk
 	preload () {
-		this.load.audio('boar_game_music', ['assets/boar_game.mp3']);
+		this.load.audio('worm_game_music', ['assets/worm-game.mp3']);
 		this.load.plugin('rexshakepositionplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexshakepositionplugin.min.js', true);
 		this.load.html("form", "html/form.html");
 	    this.load.text('legal_words', 'assets/legal_words.txt');

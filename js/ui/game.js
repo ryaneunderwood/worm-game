@@ -55,7 +55,7 @@ class Game extends Phaser.Scene {
 	this.enter_key.on('down', this.handle_press_enter, this);
 
 	// Add music
-	this.bgm = this.sound.add("boar_game_music", {loop : true});
+	this.bgm = this.sound.add("worm_game_music", {loop : true});
 	this.bgm.play();
 
 	//this.generate_puzzle();
