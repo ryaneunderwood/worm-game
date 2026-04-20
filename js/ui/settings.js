@@ -40,9 +40,9 @@ const RESOLUTION = 5
 
 // Game-mode buttons. Insets from the left/right edges leave room for
 // the bubble outline + drop shadow without clipping.
-const GMODE1_X = WINDOW_WIDTH * 0.8/10
+const GMODE1_X = WINDOW_WIDTH * 0.4/10
 const GMODE2_X = WINDOW_WIDTH * 5/10
-const GMODE3_X = WINDOW_WIDTH * 9.2/10
+const GMODE3_X = WINDOW_WIDTH * 9.6/10
 const GMODE1_Y = WINDOW_HEIGHT * 0.4/10
 const GMODE2_Y = WINDOW_HEIGHT * 0.4/10
 const GMODE3_Y = WINDOW_HEIGHT * 0.4/10

@@ -247,7 +247,8 @@ class Game extends Phaser.Scene {
 	this.show_solution();
 	this.GAVE_UP = true;
 	this.score_counter.setText("GAVE UP");
-	if (!this.stats_recorded && (this.mode === 'daily' || this.mode === 'practice')) {
+	if (!this.stats_recorded && (this.mode === 'daily' || this.mode === 'practice')
+		&& !this.archive_date) {
 	    this.record_giveup(this.mode);
 	    this.stats_recorded = true;
 	    this.show_stats_modal(this.mode, false);
@@ -312,7 +313,7 @@ class Game extends Phaser.Scene {
     }
 
     save_daily_state() {
-	if (this.mode !== 'daily') return;
+	if (this.mode !== 'daily' || this.archive_date) return;
 	const key = this.daily_storage_key();
 	if (!key) return;
 	const state = {
@@ -357,6 +358,63 @@ class Game extends Phaser.Scene {
 	    if (s.start !== this.daily_start || s.goal !== this.daily_goal) return null;
 	    return s;
 	} catch (e) { return null; }
+    }
+
+    // ---- Archive (play a past daily) ----
+    // this.archive_date is an ISO date ("YYYY-MM-DD") while the player
+    // is working through an old daily via the calendar tab. In archive
+    // mode, stats are NOT recorded and the win/give-up flow doesn't
+    // pop the stats modal; the player just sees the in-game win/lose
+    // text. Exiting back to a mode button clears this.archive_date.
+    in_archive() { return !!this.archive_date; }
+
+    lookup_daily_for_date(iso_date) {
+	if (!iso_date || iso_date.length !== 10) return null;
+	const [y, m, d] = iso_date.split('-');
+	const key = `${d}-${m}-${y}`;
+	const raw = this.cache.text.get('daily_list') || '';
+	for (const line of raw.replaceAll('\r', '').split('\n')) {
+	    const trimmed = line.trim();
+	    if (!trimmed) continue;
+	    const parts = trimmed.split(',');
+	    if (parts.length >= 3 && parts[0] === key) {
+		return { start: parts[1].toUpperCase(), goal: parts[2].toUpperCase() };
+	    }
+	}
+	return null;
+    }
+
+    enter_archive(iso_date) {
+	const entry = this.lookup_daily_for_date(iso_date);
+	if (!entry) return;
+	this.archive_date = iso_date;
+	this.set_active_mode('daily');
+	this.start_word = entry.start;
+	this.goal_word.setText(entry.goal);
+	this.word_path = calc_word_path(this.start_word, this.goal_word.text,
+					this.word_array, this.word_graph);
+	this.reset_game_state();
+	this.update_solution_button();
+	this.update_archive_indicator();
+    }
+
+    exit_archive() {
+	if (!this.archive_date) return;
+	this.archive_date = null;
+	this.update_archive_indicator();
+    }
+
+    update_archive_indicator() {
+	if (!this.archive_label) return;
+	if (this.archive_date) {
+	    const d = new Date(this.archive_date + 'T12:00:00Z');
+	    const mon = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+	    this.archive_label.setText(
+		`ARCHIVE · ${d.getUTCDate()} ${mon[d.getUTCMonth()]} ${d.getUTCFullYear()} · tap DAILY to return`
+	    );
+	} else {
+	    this.archive_label.setText("");
+	}
     }
 
     // Fallback synthesis when the stats doc tells us today's daily
@@ -865,7 +923,8 @@ class Game extends Phaser.Scene {
 		this.score_counter.setText(`WIN IN ${++this.count}!`);
 		this.VICTORY = true;
 		this.show_solution();   // also display the ideal in the right column
-		if (!this.stats_recorded && (this.mode === 'daily' || this.mode === 'practice')) {
+		if (!this.stats_recorded && (this.mode === 'daily' || this.mode === 'practice')
+			&& !this.archive_date) {
 		    const over = Math.max(0, this.count - ideal_steps);
 		    this.record_win(this.mode, over);
 		    this.stats_recorded = true;
@@ -933,6 +992,9 @@ class Game extends Phaser.Scene {
 	// the history box).
 	this.ideal_history = this.add_text(HISTORY_BOX_X + HISTORY_BOX_W, HISTORY_BOX_Y, "", HISTORY_BOX_FONTSIZE, COLOR_GREEN);
 	this.ideal_history.setOrigin(1, 0);
+	// Archive mode indicator, shown only while playing a past daily
+	// from the calendar tab. Positioned just below the history box.
+	this.archive_label = this.add_text(WINDOW_WIDTH / 2, HISTORY_BOX_Y + HISTORY_BOX_H + 10, "", 12, COLOR_MUTED);
 	this.error_msg = this.add_text(ERROR_BOX_X,ERROR_BOX_Y,"",HISTORY_BOX_FONTSIZE);
     }
 
@@ -1012,7 +1074,7 @@ class Game extends Phaser.Scene {
     // so today sits in its natural weekday column of the bottom row.
     // Green = solved, red = gave-up, muted = not played; today gets a
     // blue outline.
-    _render_calendar_tab(items, bx, bw, y0, greenColor, redColor, mutedColor) {
+    _render_calendar_tab(items, bx, bw, y0, greenColor, redColor, mutedColor, close_modal) {
 	const cell = 32;
 	const gap  = 4;
 	const cols = 7;
@@ -1078,6 +1140,35 @@ class Game extends Phaser.Scene {
 					  fontStyle: is_today ? "600" : "400" })
 		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
 	    items.push(label);
+
+	    // Clickable: any past date that has a puzzle in the daily list
+	    // (also today; tapping today just re-loads today's daily).
+	    // Future cells stay inert.
+	    if (!is_future && close_modal) {
+		const entry = this.lookup_daily_for_date(iso);
+		if (entry) {
+		    const zone = this.add.zone(cx, cy, cell, cell).setOrigin(0, 0).setInteractive();
+		    zone.on('pointerdown', () => {
+			close_modal();
+			if (iso === today_iso) {
+			    // tapping today exits archive and loads today.
+			    this.exit_archive();
+			    this.start_word = this.daily_start;
+			    this.goal_word.setText(this.daily_goal);
+			    this.word_path = calc_word_path(this.start_word, this.goal_word.text,
+							    this.word_array, this.word_graph);
+			    this.set_active_mode('daily');
+			    this.update_solution_button();
+			    const saved = this.load_daily_state() || this.synth_daily_from_history();
+			    if (saved) this.apply_daily_state(saved);
+			    else this.reset_game_state();
+			} else {
+			    this.enter_archive(iso);
+			}
+		    });
+		    items.push(zone);
+		}
+	    }
 	}
 
 	// Legend: coloured bullet for each result category. Lay the three
@@ -1268,7 +1359,8 @@ class Game extends Phaser.Scene {
 	// ---- Tab content ----
 	if (tab === 'calendar') {
 	    this._render_calendar_tab(items, bx, bw, content_y,
-				      greenColor, redColor, mutedColor);
+				      greenColor, redColor, mutedColor,
+				      () => close(false));
 	} else {
 	    // Distribution bars for the 'daily' / 'practice' stats bucket.
 	    const summary_str = `Streak: ${st.streak}   Best: ${st.best_streak}\n` +
@@ -1511,14 +1603,18 @@ class Game extends Phaser.Scene {
     // Daily visually stands out as the primary option.
     load_gamemodes() {
 	const PAD_X = 18, PAD_Y = 10;
-	const SIDE_FONT = Math.round(WORD_FONTSIZE * 0.9);
-	const SIDE_PAD_X = Math.round(PAD_X * 0.9), SIDE_PAD_Y = Math.round(PAD_Y * 0.9);
+	// Side buttons shrunk to ~82% so the DAILY button has room to
+	// grow with the puzzle number (e.g. "DAILY PUZZLE #100") without
+	// colliding with UNLIMITED or FREE PLAY.
+	const SIDE_FONT = Math.round(WORD_FONTSIZE * 0.82);
+	const SIDE_PAD_X = Math.round(PAD_X * 0.82), SIDE_PAD_Y = Math.round(PAD_Y * 0.82);
 
 	// Practice — persists the current puzzle across sessions; tapping
 	// the button simply brings you back to whatever practice game is
 	// currently in progress (or rolls a new one if there isn't one).
 	this.regular = this.add_button(GMODE1_X, GMODE1_Y, "UNLIMITED", SIDE_FONT, COLOR_RED, 0, 0, SIDE_PAD_X, SIDE_PAD_Y);
 	this.regular.zone.on('pointerdown', () => {
+	    this.exit_archive();
 	    this.set_active_mode('practice');
 	    const saved = this.load_practice_state();
 	    if (saved) {
@@ -1531,9 +1627,12 @@ class Game extends Phaser.Scene {
 	    this.update_solution_button();
 	});
 
-	// Daily puzzle — curated start/goal pair
-	this.daily_challenge = this.add_button(GMODE2_X, GMODE2_Y, "DAILY PUZZLE", WORD_FONTSIZE, COLOR_GREEN, 0.5, 0, PAD_X, PAD_Y);
+	// Daily puzzle — curated start/goal pair, with the puzzle number
+	// baked into the button label.
+	const daily_label = `DAILY PUZZLE #${this.daily_puzzle_number()}`;
+	this.daily_challenge = this.add_button(GMODE2_X, GMODE2_Y, daily_label, WORD_FONTSIZE, COLOR_GREEN, 0.5, 0, PAD_X, PAD_Y);
 	this.daily_challenge.zone.on('pointerdown', () => {
+	    this.exit_archive();
 	    this.start_word = this.daily_start;
 	    this.goal_word.setText(this.daily_goal);
 	    this.word_path = calc_word_path(this.start_word, this.goal_word.text, this.word_array, this.word_graph);
@@ -1547,6 +1646,7 @@ class Game extends Phaser.Scene {
 	// Free play — user enters start and goal words
 	this.free_play = this.add_button(GMODE3_X, GMODE3_Y, "FREE PLAY", SIDE_FONT, COLOR_RED, 1, 0, SIDE_PAD_X, SIDE_PAD_Y);
 	this.free_play.zone.on('pointerdown', () => {
+	    this.exit_archive();
 	    this.start_word = "???";
 	    this.goal_word.setText("???");
 	    this.set_active_mode('freeplay');
