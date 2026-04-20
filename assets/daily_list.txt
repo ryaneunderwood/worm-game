@@ -413,3 +413,6 @@
 02-06-2027,ham,eggs
 03-06-2027,ship,port
 04-06-2027,ship,dock
+05-06-2027,informers,enforcers
+06-06-2027,electro,reflections
+07-06-2027,royalists,vocalized
