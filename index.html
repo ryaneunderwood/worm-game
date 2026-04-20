@@ -76,6 +76,10 @@
         justify-content: center;
         align-items: center;
       }
+      /* Keep mobile pinch-zoom and drag-to-scroll working when the
+         gesture starts over the game canvas. Phaser sets
+         touch-action:none inline; !important wins over that. */
+      #game canvas { touch-action: auto !important; }
     </style>
     </head>
 

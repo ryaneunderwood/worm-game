@@ -25,6 +25,7 @@ from collections import defaultdict
 # or loan-words that look like typos in a casual word game context.
 BLOCKLIST = {
     "sinh",   # hyperbolic-sine abbreviation; reads like a typo.
+    "guid",   # programming identifier abbreviation; reads like a typo.
 }
 
 
