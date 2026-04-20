@@ -814,6 +814,55 @@ class Game extends Phaser.Scene {
 	} catch (e) { console.warn("aggregate write failed:", e); }
     }
 
+    // Return today's daily state even if the currently-loaded game is
+    // an archived date. Consulted by the Daily tab of the stats modal
+    // so its subtitle and row highlight reflect today's puzzle — not
+    // whichever past daily the player is looking at via the calendar.
+    get_today_daily_state() {
+	const today_iso = this.iso_today();
+	// Live state, only when the actual current game is today's daily.
+	if (this.mode === 'daily' && !this.archive_date) {
+	    const ideal = (this.word_path && this.word_path.length > 0)
+		  ? this.word_path.length - 1 : null;
+	    return {
+		ended: this.game_over(),
+		victory: !!this.VICTORY,
+		gave_up: !!this.GAVE_UP,
+		count: this.count,
+		ideal: ideal,
+	    };
+	}
+	// Otherwise reconstruct today's state from the stats doc.
+	const compute_ideal = () => {
+	    const entry = this.lookup_daily_for_date(today_iso);
+	    if (!entry) return null;
+	    const p = calc_word_path(entry.start, entry.goal, this.word_array, this.word_graph);
+	    return (p && p.length > 0) ? p.length - 1 : null;
+	};
+	const cur = this.stats && this.stats.daily && this.stats.daily.current;
+	if (cur && cur.date === today_iso) {
+	    return {
+		ended: !!(cur.victory || cur.gave_up),
+		victory: !!cur.victory,
+		gave_up: !!cur.gave_up,
+		count: cur.count || 0,
+		ideal: compute_ideal(),
+	    };
+	}
+	const h = this.stats && this.stats.daily && this.stats.daily.history
+		&& this.stats.daily.history[today_iso];
+	if (h) {
+	    return {
+		ended: (h.result === 'solved' || h.result === 'gave_up'),
+		victory: h.result === 'solved',
+		gave_up: h.result === 'gave_up',
+		count: h.steps || 0,
+		ideal: (h.ideal != null ? h.ideal : compute_ideal()),
+	    };
+	}
+	return { ended: false, victory: false, gave_up: false, count: 0, ideal: compute_ideal() };
+    }
+
     async fetch_world_stats(iso_date) {
 	if (!window.WG_AUTH) return null;
 	const A = window.WG_AUTH;
@@ -1555,34 +1604,48 @@ class Game extends Phaser.Scene {
 	close_x.on('pointerdown', () => close(false));
 	items.push(close_x);
 
-	// Result subtitle — only when viewing the tab whose mode matches
-	// the caller's completed-game context.
-	const ended = this.game_over();
-	const ideal_steps = (this.word_path && this.word_path.length > 0)
+	// Result subtitle. The Daily tab always describes TODAY's daily,
+	// even if an archived puzzle is currently loaded in the game. The
+	// Unlimited tab uses the live practice state when that's the
+	// current mode. Other tabs (calendar/world) skip the subtitle.
+	const live_ended = this.game_over();
+	const live_ideal = (this.word_path && this.word_path.length > 0)
 	      ? this.word_path.length - 1 : null;
-	if (tab === mode) {
-	    const mode_label = (mode === 'daily')
-		  ? `DAILY PUZZLE #${this.daily_puzzle_number()}`
-		  : 'UNLIMITED';
-	    let main_str = mode_label;
-	    if (ended && this.VICTORY) main_str = `${mode_label} — SOLVED (${this.count} steps)`;
-	    else if (ended && this.GAVE_UP) main_str = `${mode_label} — GAVE UP`;
+	let sub_ended = false, sub_victory = false, sub_gaveup = false,
+	    sub_count = 0, sub_ideal = null, sub_label = null;
+	if (tab === 'daily') {
+	    const s = this.get_today_daily_state();
+	    sub_ended = s.ended; sub_victory = s.victory; sub_gaveup = s.gave_up;
+	    sub_count = s.count; sub_ideal = s.ideal;
+	    sub_label = `DAILY PUZZLE #${this.daily_puzzle_number()}`;
+	} else if (tab === 'practice' && mode === 'practice') {
+	    sub_ended = live_ended; sub_victory = this.VICTORY; sub_gaveup = this.GAVE_UP;
+	    sub_count = this.count; sub_ideal = live_ideal;
+	    sub_label = 'UNLIMITED';
+	}
+	if (sub_label) {
+	    let main_str = sub_label;
+	    if (sub_ended && sub_victory) main_str = `${sub_label} — SOLVED (${sub_count} steps)`;
+	    else if (sub_ended && sub_gaveup) main_str = `${sub_label} — GAVE UP`;
 	    const subtitle = this.add.text(WINDOW_WIDTH / 2, by + 64, main_str,
 					   { fontSize: 17, fontFamily: "'Inter', sans-serif",
-					     color: (ended && !this.VICTORY) ? COLOR_RED
-						 : (ended ? COLOR_GREEN : COLOR_TEXT),
+					     color: (sub_ended && !sub_victory) ? COLOR_RED
+						 : (sub_ended ? COLOR_GREEN : COLOR_TEXT),
 					     fontStyle: "600" })
 		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
 	    items.push(subtitle);
-	    if (ended && ideal_steps !== null) {
+	    if (sub_ended && sub_ideal !== null) {
 		const ideal_line = this.add.text(WINDOW_WIDTH / 2, by + 88,
-						 `Ideal Solution (${ideal_steps} steps)`,
+						 `Ideal Solution (${sub_ideal} steps)`,
 						 { fontSize: 13, fontFamily: "'Inter', sans-serif",
 						   color: COLOR_TEXT })
 		      .setOrigin(0.5, 0).setResolution(RESOLUTION);
 		items.push(ideal_line);
 	    }
 	}
+	// Kept for the distribution-bar highlight below.
+	const ended = live_ended;
+	const ideal_steps = live_ideal;
 
 	// ---- Tab bar ----
 	const tab_y = by + 120;
@@ -1672,11 +1735,18 @@ class Game extends Phaser.Scene {
 	    const rows_start_y = content_y + 74;
 	    const label_right_x = bar_x - 10;
 
-	    // Row highlight: only when the viewed tab matches the mode whose
-	    // game just ended (so it reflects the game the player just
-	    // finished, not some other mode's recent result).
+	    // Row highlight: reflect the bucket of today's daily on the
+	    // Daily tab, or the current practice game on the Unlimited
+	    // tab. Using today's state (not the live this.VICTORY/count)
+	    // keeps the highlight correct while viewing an archived daily.
 	    let active_row = -1;
-	    if (ended && tab === mode) {
+	    if (tab === 'daily' && sub_ended) {
+		if (sub_gaveup) active_row = 6;
+		else if (sub_victory && sub_ideal !== null) {
+		    const over = Math.max(0, sub_count - sub_ideal);
+		    active_row = Math.min(over, 5);
+		}
+	    } else if (tab === 'practice' && mode === 'practice' && ended) {
 		if (this.GAVE_UP) active_row = 6;
 		else if (this.VICTORY && ideal_steps !== null) {
 		    const over = Math.max(0, this.count - ideal_steps);
