@@ -18,7 +18,7 @@
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
       import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
         from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-      import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
+      import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, increment }
         from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 
@@ -49,7 +49,7 @@
           auth, db,
           provider: new GoogleAuthProvider(),
           signInWithPopup, signOut, onAuthStateChanged,
-          doc, getDoc, setDoc, serverTimestamp,
+          doc, getDoc, setDoc, updateDoc, serverTimestamp, increment,
         };
       } catch (e) {
         console.warn("Firebase init failed (config probably still placeholder):", e);

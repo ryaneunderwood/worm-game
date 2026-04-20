@@ -251,6 +251,7 @@ class Game extends Phaser.Scene {
 		&& !this.archive_date) {
 	    this.record_giveup(this.mode);
 	    this.stats_recorded = true;
+	    if (this.mode === 'daily') this.contribute_to_aggregate(false, null);
 	    this.show_stats_modal(this.mode, false);
 	}
 	this.save_current_state();
@@ -763,6 +764,65 @@ class Game extends Phaser.Scene {
 	}, 1200);
     }
 
+    // ---- Shared per-day aggregate stats (the "World" tab) ----
+    // One Firestore document per daily puzzle at aggregates/{iso_date},
+    // shape:
+    //   { date, puzzle_number, start, goal, ideal,
+    //     distribution: { "0": n, "1": n, ..., "5plus": n, "giveup": n },
+    //     total_plays: N, last_updated: timestamp }
+    // Every completing signed-in player atomically increments the bucket
+    // for their outcome + total_plays once per puzzle; the 'contributed'
+    // flag on their own history entry prevents double-counting.
+
+    _outcome_bucket(won, over) {
+	if (!won) return 'giveup';
+	const o = Math.max(0, over | 0);
+	return o >= 5 ? '5plus' : String(o);
+    }
+
+    async contribute_to_aggregate(won, over) {
+	if (this.archive_date) return;                   // archive plays are isolated
+	if (!this.auth_user || !window.WG_AUTH) return;  // anonymous can't write
+	if (!this.stats || !this.stats.daily) return;
+	const today = this.iso_today();
+	this.stats.daily.history = this.stats.daily.history || {};
+	const hist = this.stats.daily.history[today];
+	if (hist && hist.aggregate_contributed) return;
+
+	const A = window.WG_AUTH;
+	const ideal = (this.word_path && this.word_path.length > 0)
+	      ? this.word_path.length - 1 : 0;
+	const bucket = this._outcome_bucket(won, over);
+
+	const ref = A.doc(A.db, "aggregates", today);
+	try {
+	    await A.setDoc(ref, {
+		date: today,
+		puzzle_number: this.daily_puzzle_number(today),
+		start: this.daily_start,
+		goal: this.daily_goal,
+		ideal: ideal,
+		distribution: { [bucket]: A.increment(1) },
+		total_plays: A.increment(1),
+		last_updated: A.serverTimestamp(),
+	    }, { merge: true });
+	    if (hist) hist.aggregate_contributed = true;
+	    this.save_stats();   // persist the flag locally + remotely
+	    // Invalidate the World-tab cache so a fresh fetch includes
+	    // this play the next time the tab is opened.
+	    this._world_cache = null;
+	} catch (e) { console.warn("aggregate write failed:", e); }
+    }
+
+    async fetch_world_stats(iso_date) {
+	if (!window.WG_AUTH) return null;
+	const A = window.WG_AUTH;
+	try {
+	    const snap = await A.getDoc(A.doc(A.db, "aggregates", iso_date));
+	    return snap.exists() ? snap.data() : null;
+	} catch (e) { return null; }
+    }
+
     sign_in_google() {
 	if (!window.WG_AUTH) return;
 	const A = window.WG_AUTH;
@@ -1000,6 +1060,7 @@ class Game extends Phaser.Scene {
 		    const over = Math.max(0, this.count - ideal_steps);
 		    this.record_win(this.mode, over);
 		    this.stats_recorded = true;
+		    if (this.mode === 'daily') this.contribute_to_aggregate(true, over);
 		    this.show_stats_modal(this.mode, true);
 		}
 		this.refresh_button_states();
@@ -1277,6 +1338,126 @@ class Game extends Phaser.Scene {
 	}
     }
 
+    // World tab: renders the aggregate distribution for today's daily
+    // (or the archived date, if one is active). Uses a small in-memory
+    // cache so reopening the tab doesn't re-hit Firestore.
+    _render_world_tab(items, bx, bw, y0, greenColor, redColor, mutedColor) {
+	const date = this.archive_date || this.iso_today();
+	const cache = this._world_cache;
+	if (!cache || cache.date !== date) {
+	    // Show loading + kick off fetch.
+	    const loading = this.add.text(WINDOW_WIDTH / 2, y0 + 40,
+					  "Loading world results…",
+					  { fontSize: 14, fontFamily: "'Inter', sans-serif",
+					    color: COLOR_MUTED })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(loading);
+	    this._world_cache = { date, data: undefined };
+	    this.fetch_world_stats(date).then(data => {
+		this._world_cache = { date, data };
+		// If still on the World tab, rebuild with the data.
+		if (this.stats_modal_state && this.stats_modal_state.tab === 'world'
+			&& !this.stats_modal_state.container.__closed) {
+		    this.refresh_stats_modal();
+		}
+	    });
+	    return;
+	}
+	if (cache.data === undefined) {
+	    // Fetch in flight from a previous open; show loading again.
+	    const loading = this.add.text(WINDOW_WIDTH / 2, y0 + 40,
+					  "Loading world results…",
+					  { fontSize: 14, fontFamily: "'Inter', sans-serif",
+					    color: COLOR_MUTED })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(loading);
+	    return;
+	}
+	if (!cache.data) {
+	    const note = (date === this.iso_today())
+		  ? "No world results yet today."
+		  : "No world results for this date.";
+	    const t1 = this.add.text(WINDOW_WIDTH / 2, y0 + 40, note,
+				     { fontSize: 14, fontFamily: "'Inter', sans-serif",
+				       color: COLOR_MUTED })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    const t2 = !this.auth_user
+		  ? this.add.text(WINDOW_WIDTH / 2, y0 + 68,
+				  "(Sign in to record and see world stats.)",
+				  { fontSize: 11, fontFamily: "'Inter', sans-serif",
+				    color: COLOR_MUTED })
+			.setOrigin(0.5, 0).setResolution(RESOLUTION)
+		  : null;
+	    items.push(t1); if (t2) items.push(t2);
+	    return;
+	}
+
+	// Render aggregate distribution bars (same rows as the personal
+	// distribution tab, scaled against the largest bucket).
+	const data = cache.data;
+	const dist = data.distribution || {};
+	const rows = [
+	    { label: 'Ideal',   count: +dist['0']       || 0, color: greenColor },
+	    { label: '1',       count: +dist['1']       || 0, color: greenColor },
+	    { label: '2',       count: +dist['2']       || 0, color: greenColor },
+	    { label: '3',       count: +dist['3']       || 0, color: greenColor },
+	    { label: '4',       count: +dist['4']       || 0, color: greenColor },
+	    { label: '5+',      count: +dist['5plus']   || 0, color: greenColor },
+	    { label: 'Gave Up', count: +dist['giveup']  || 0, color: redColor   },
+	];
+	const total = +data.total_plays || rows.reduce((s, r) => s + r.count, 0);
+
+	const header = this.add.text(WINDOW_WIDTH / 2, y0,
+				     `${(data.start || '?').toUpperCase()} → ${(data.goal || '?').toUpperCase()}   ·   ideal ${data.ideal || '?'}   ·   ${total} plays`,
+				     { fontSize: 13, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT })
+	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	items.push(header);
+
+	const bar_x = bx + 115;
+	const bar_end_x = bx + bw - 75;
+	const bar_w_full = bar_end_x - bar_x;
+	const count_col_x = bar_end_x + 20;
+	const bar_h = 18;
+	const row_gap = 28;
+	const rows_start_y = y0 + 36;
+	const label_right_x = bar_x - 10;
+	const max_count = Math.max(1, ...rows.map(r => r.count));
+
+	const draw_worm = (g, x, y, w, h, color_int) => {
+	    if (w <= 0) return;
+	    g.fillStyle(color_int, 0.95);
+	    g.fillRoundedRect(x, y, w, h, h / 2);
+	    const cap = h / 2;
+	    const rib_start = x + cap + 4;
+	    const rib_end = x + w - cap - 4;
+	    g.lineStyle(1.2, 0x000000, 0.28);
+	    for (let rx = rib_start; rx <= rib_end; rx += 22) {
+		g.beginPath();
+		g.moveTo(rx, y + 2); g.lineTo(rx, y + h - 2); g.strokePath();
+	    }
+	};
+
+	for (let i = 0; i < rows.length; i++) {
+	    const r = rows[i];
+	    const row_y = rows_start_y + i * row_gap;
+	    const label = this.add.text(label_right_x, row_y + bar_h / 2, r.label,
+					{ fontSize: 13, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT })
+		  .setOrigin(1, 0.5).setResolution(RESOLUTION);
+	    const bar = this.add.graphics();
+	    bar.fillStyle(mutedColor, 0.20).fillRoundedRect(bar_x, row_y, bar_w_full, bar_h, bar_h / 2);
+	    if (r.count > 0) {
+		const fw = (r.count / max_count) * bar_w_full;
+		draw_worm(bar, bar_x, row_y, fw, bar_h, r.color);
+	    }
+	    const pct = total ? Math.round((r.count / total) * 100) : 0;
+	    const count_txt = `${r.count} · ${pct}%`;
+	    const count = this.add.text(count_col_x, row_y + bar_h / 2, count_txt,
+					{ fontSize: 12, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT })
+		  .setOrigin(1, 0.5).setResolution(RESOLUTION);
+	    items.push(label, bar, count);
+	}
+    }
+
     // Copy today's daily result to the clipboard in a short shareable
     // form. Returns true on success, false on failure (e.g. browser
     // blocks clipboard access outside of a gesture).
@@ -1405,20 +1586,24 @@ class Game extends Phaser.Scene {
 
 	// ---- Tab bar ----
 	const tab_y = by + 120;
-	// Order mirrors the main-screen mode buttons: Unlimited (left) /
-	// Daily (centre) / Calendar (right). With 3 tabs and the middle
-	// offset = 0, Daily sits centred on the modal.
+	// Tab order: Unlimited / Daily / World / Calendar. Four tabs
+	// means none sits perfectly centred; spacing + smaller labels
+	// keep them all inside the modal.
 	const tab_defs = [
 	    { id: 'practice',  label: 'UNLIMITED' },
 	    { id: 'daily',     label: 'DAILY'     },
+	    { id: 'world',     label: 'WORLD'     },
 	    { id: 'calendar',  label: 'CALENDAR'  },
 	];
-	const tab_spacing = 92;
+	// Space tabs across the panel. Four tabs fit with ~70 px between
+	// centres; labels use a slightly smaller font for clarity.
+	const tab_spacing = (bw - 40) / tab_defs.length;
+	const tab_first_x = bx + 20 + tab_spacing / 2;
 	tab_defs.forEach((t, i) => {
-	    const tx = WINDOW_WIDTH / 2 + (i - 1) * tab_spacing;
+	    const tx = tab_first_x + i * tab_spacing;
 	    const is_active = (t.id === tab);
 	    const txt = this.add.text(tx, tab_y, t.label,
-				      { fontSize: 13, fontFamily: "'Inter', sans-serif",
+				      { fontSize: 12, fontFamily: "'Inter', sans-serif",
 					color: is_active ? COLOR_GREEN : COLOR_MUTED,
 					fontStyle: is_active ? "600" : "400" })
 		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
@@ -1444,6 +1629,9 @@ class Game extends Phaser.Scene {
 	    this._render_calendar_tab(items, bx, bw, content_y,
 				      greenColor, redColor, mutedColor,
 				      () => close(false));
+	} else if (tab === 'world') {
+	    this._render_world_tab(items, bx, bw, content_y,
+				   greenColor, redColor, mutedColor);
 	} else {
 	    // Distribution bars for the 'daily' / 'practice' stats bucket.
 	    const summary_str = `Streak: ${st.streak}   Best: ${st.best_streak}\n` +
