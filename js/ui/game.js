@@ -550,9 +550,28 @@ class Game extends Phaser.Scene {
 		s.practice = Object.assign(s.practice, parsed.practice || {});
 		s.daily.distribution    = s.daily.distribution    || {};
 		s.practice.distribution = s.practice.distribution || {};
+		s.daily.history         = s.daily.history || {};
 	    }
 	} catch (e) {}
+	this.backfill_daily_history(s);
 	return s;
+    }
+
+    // Fill in history entries for solved days whose record pre-dates
+    // the history feature. If streak is N and last_win_date is D, then
+    // D, D-1, ..., D-(N-1) were all wins in a row; any of those days
+    // that has no history entry is tagged as solved so the calendar
+    // matches the streak count.
+    backfill_daily_history(s) {
+	if (!s || !s.daily || !s.daily.last_win_date || !s.daily.streak) return;
+	s.daily.history = s.daily.history || {};
+	const last = new Date(`${s.daily.last_win_date}T12:00:00Z`);
+	for (let i = 0; i < s.daily.streak; i++) {
+	    const day = new Date(last);
+	    day.setUTCDate(day.getUTCDate() - i);
+	    const iso = `${day.getUTCFullYear()}-${String(day.getUTCMonth()+1).padStart(2,'0')}-${String(day.getUTCDate()).padStart(2,'0')}`;
+	    if (!s.daily.history[iso]) s.daily.history[iso] = { result: 'solved' };
+	}
     }
 
     save_stats() {
@@ -576,8 +595,14 @@ class Game extends Phaser.Scene {
 		    const snap = await A.getDoc(A.doc(A.db, "stats", user.uid));
 		    const remote = snap.exists() ? snap.data() : null;
 		    this.stats = remote && remote.daily ? remote : this.default_stats();
+		    // Derive any pre-history solved days from streak so the
+		    // calendar matches the reported streak count.
+		    const before = JSON.stringify(this.stats.daily && this.stats.daily.history || {});
+		    this.backfill_daily_history(this.stats);
+		    const after = JSON.stringify(this.stats.daily.history || {});
 		    try { localStorage.setItem(this.STATS_KEY(), JSON.stringify(this.stats)); } catch (e) {}
 		    if (!remote) this.save_stats_remote();   // seed empty doc
+		    else if (before !== after) this.save_stats_remote();   // persist backfill
 		    // If we're currently showing the daily puzzle, re-apply
 		    // today's state from the freshly-synced stats doc. This
 		    // catches the case where local storage was wiped / is out
@@ -1055,13 +1080,38 @@ class Game extends Phaser.Scene {
 	    items.push(label);
 	}
 
-	const legend_y = grid_y + rows * (cell + gap) + 10;
-	const legend = this.add.text(WINDOW_WIDTH / 2, legend_y,
-				     "● solved   ● gave up   ● not played",
-				     { fontSize: 11, fontFamily: "'Inter', sans-serif",
-				       color: COLOR_MUTED })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-	items.push(legend);
+	// Legend: coloured bullet for each result category. Lay the three
+	// "● label" pairs out left-to-right and centre the whole strip.
+	const legend_y = grid_y + rows * (cell + gap) + 12;
+	const legend_parts = [
+	    { dot: COLOR_GREEN, label: 'solved' },
+	    { dot: COLOR_RED,   label: 'gave up' },
+	    { dot: COLOR_MUTED, label: 'not played' },
+	];
+	const make_measure = (text, color) => this.add.text(0, 0, text,
+	    { fontSize: 11, fontFamily: "'Inter', sans-serif", color: color });
+	// Probe widths so we can centre the assembly.
+	const pairs = legend_parts.map(p => {
+	    const dotProbe = make_measure('●', p.dot).setResolution(RESOLUTION);
+	    const lblProbe = make_measure(' ' + p.label, COLOR_MUTED).setResolution(RESOLUTION);
+	    const dw = dotProbe.width, lw = lblProbe.width;
+	    dotProbe.destroy(); lblProbe.destroy();
+	    return { p, dw, lw };
+	});
+	const gap_between = 14;
+	const total_w = pairs.reduce((s, o) => s + o.dw + o.lw, 0)
+			+ gap_between * (pairs.length - 1);
+	let px = WINDOW_WIDTH / 2 - total_w / 2;
+	for (const o of pairs) {
+	    const dot = this.add.text(px, legend_y, '●',
+		{ fontSize: 11, fontFamily: "'Inter', sans-serif", color: o.p.dot })
+		  .setOrigin(0, 0).setResolution(RESOLUTION);
+	    const lbl = this.add.text(px + o.dw, legend_y, ' ' + o.p.label,
+		{ fontSize: 11, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
+		  .setOrigin(0, 0).setResolution(RESOLUTION);
+	    items.push(dot, lbl);
+	    px += o.dw + o.lw + gap_between;
+	}
     }
 
     // Copy today's daily result to the clipboard in a short shareable
@@ -1082,6 +1132,9 @@ class Game extends Phaser.Scene {
 		 && this.stats.daily.history[this.iso_today()].ideal) || null;
 	const steps = (this.count > 0) ? this.count : (cur.count || 0);
 
+	const start_word = (this.daily_start || (cur.start || '??')).toUpperCase();
+	const goal_word  = (this.daily_goal  || (cur.goal  || '??')).toUpperCase();
+
 	let header;
 	if (won) {
 	    const over = (ideal !== null) ? Math.max(0, steps - ideal) : 0;
@@ -1091,11 +1144,12 @@ class Game extends Phaser.Scene {
 	} else {
 	    return false;
 	}
+	const pair = `${start_word} → ${goal_word}`;
 	const emoji = gave ? '🔴' : '🟢';
 	const body_len = won ? steps : (ideal || 1);
 	const grid = emoji.repeat(Math.max(1, body_len));
 	const url = 'https://soft-shade.github.io/worm-game/';
-	const text = `${header}\n${grid}\n${url}`;
+	const text = `${header}\n${pair}\n${grid}\n${url}`;
 
 	try {
 	    if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1177,9 +1231,12 @@ class Game extends Phaser.Scene {
 
 	// ---- Tab bar ----
 	const tab_y = by + 120;
+	// Order mirrors the main-screen mode buttons: Unlimited (left) /
+	// Daily (centre) / Calendar (right). With 3 tabs and the middle
+	// offset = 0, Daily sits centred on the modal.
 	const tab_defs = [
-	    { id: 'daily',     label: 'DAILY'     },
 	    { id: 'practice',  label: 'UNLIMITED' },
+	    { id: 'daily',     label: 'DAILY'     },
 	    { id: 'calendar',  label: 'CALENDAR'  },
 	];
 	const tab_spacing = 92;
