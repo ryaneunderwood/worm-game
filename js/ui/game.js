@@ -1480,17 +1480,21 @@ class Game extends Phaser.Scene {
 	    { label: 'Gave Up', count: +dist['giveup']  || 0, color: redColor   },
 	];
 	const total = +data.total_plays || rows.reduce((s, r) => s + r.count, 0);
+	const plays_word = (total === 1) ? 'play' : 'plays';
 
 	const header = this.add.text(WINDOW_WIDTH / 2, y0,
-				     `${(data.start || '?').toUpperCase()} → ${(data.goal || '?').toUpperCase()}   ·   ideal ${data.ideal || '?'}   ·   ${total} plays`,
+				     `${(data.start || '?').toUpperCase()} → ${(data.goal || '?').toUpperCase()}   ·   ideal ${data.ideal || '?'}   ·   ${total} ${plays_word} today`,
 				     { fontSize: 13, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT })
 	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
 	items.push(header);
 
-	const bar_x = bx + 115;
-	const bar_end_x = bx + bw - 75;
+	// Shift the bar column left and push the count/percent column
+	// further right so the worm body never overlaps the readout
+	// (the worm can extend past bar_end_x by its rounded cap).
+	const bar_x = bx + 80;
+	const bar_end_x = bx + bw - 115;
 	const bar_w_full = bar_end_x - bar_x;
-	const count_col_x = bar_end_x + 20;
+	const count_col_x = bx + bw - 18;
 	const bar_h = 18;
 	const row_gap = 28;
 	const rows_start_y = y0 + 36;
