@@ -428,7 +428,7 @@ class Game extends Phaser.Scene {
 	const label = `DAILY PUZZLE #${n}`;
 	this.daily_challenge = this.add_button(GMODE2_X, GMODE2_Y, label,
 					       WORD_FONTSIZE, COLOR_GREEN,
-					       0.5, 0, PAD_X, PAD_Y);
+					       0.5, 0.5, PAD_X, PAD_Y);
 	this.daily_challenge.zone.on('pointerdown', () => {
 	    this.exit_archive();
 	    this.start_word = this.daily_start;
@@ -1638,14 +1638,22 @@ class Game extends Phaser.Scene {
 	    "UNLIMITED: unlimited random pairs.\n" +
 	    "FREE PLAY: pick your own start and goal.\n" +
 	    "\n" +
-	    "Tap anywhere to close.";
+	    "Press X to close.";
 	const body = this.add.text(WINDOW_WIDTH / 2, by + 80, body_str,
 				   { fontSize: 17, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT,
 				     align: "center", lineSpacing: 6 })
 	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
 
-	container.add([backdrop, panel, title, body]);
-	backdrop.on('pointerdown', () => container.setVisible(false));
+	// Explicit X button in the top-right, matching the stats modal.
+	const close_x = this.add.text(bx + bw - 20, by + 22, "×",
+				      { fontSize: 26, fontFamily: "'Inter', sans-serif",
+					color: COLOR_MUTED, fontStyle: "600" })
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION).setInteractive();
+	close_x.on('pointerover', () => close_x.setColor(COLOR_TEXT));
+	close_x.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
+	close_x.on('pointerdown', () => container.setVisible(false));
+
+	container.add([backdrop, panel, title, body, close_x]);
 	return container;
     }
 
@@ -1663,7 +1671,7 @@ class Game extends Phaser.Scene {
 	// Practice — persists the current puzzle across sessions; tapping
 	// the button simply brings you back to whatever practice game is
 	// currently in progress (or rolls a new one if there isn't one).
-	this.regular = this.add_button(GMODE1_X, GMODE1_Y, "UNLIMITED", SIDE_FONT, COLOR_RED, 0, 0, SIDE_PAD_X, SIDE_PAD_Y);
+	this.regular = this.add_button(GMODE1_X, GMODE1_Y, "UNLIMITED", SIDE_FONT, COLOR_RED, 0, 0.5, SIDE_PAD_X, SIDE_PAD_Y);
 	this.regular.zone.on('pointerdown', () => {
 	    this.exit_archive();
 	    this.set_active_mode('practice');
@@ -1685,7 +1693,7 @@ class Game extends Phaser.Scene {
 	this.update_daily_button();
 
 	// Free play — user enters start and goal words
-	this.free_play = this.add_button(GMODE3_X, GMODE3_Y, "FREE PLAY", SIDE_FONT, COLOR_RED, 1, 0, SIDE_PAD_X, SIDE_PAD_Y);
+	this.free_play = this.add_button(GMODE3_X, GMODE3_Y, "FREE PLAY", SIDE_FONT, COLOR_RED, 1, 0.5, SIDE_PAD_X, SIDE_PAD_Y);
 	this.free_play.zone.on('pointerdown', () => {
 	    this.exit_archive();
 	    this.start_word = "???";
