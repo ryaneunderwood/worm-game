@@ -737,6 +737,9 @@ class Game extends Phaser.Scene {
 			const s = this.load_daily_state() || this.synth_daily_from_history();
 			if (s) this.apply_daily_state(s);
 		    }
+		    // If today's daily was finished before the World tab
+		    // existed, contribute now so the totals match.
+		    this.backfill_aggregate_for_today();
 		} catch (e) { console.warn("remote stats fetch failed:", e); }
 	    } else if (!user && was) {
 		// Just signed out: reload whatever is in localStorage.
@@ -791,7 +794,8 @@ class Game extends Phaser.Scene {
 
 	const A = window.WG_AUTH;
 	const ideal = (this.word_path && this.word_path.length > 0)
-	      ? this.word_path.length - 1 : 0;
+	      ? this.word_path.length - 1
+	      : (hist && hist.ideal) || 0;
 	const bucket = this._outcome_bucket(won, over);
 
 	const ref = A.doc(A.db, "aggregates", today);
@@ -812,6 +816,27 @@ class Game extends Phaser.Scene {
 	    // this play the next time the tab is opened.
 	    this._world_cache = null;
 	} catch (e) { console.warn("aggregate write failed:", e); }
+    }
+
+    // Catch up the aggregates doc for today if the player completed
+    // this puzzle before the World tab existed (or in a previous
+    // session that never wrote). Safe to call repeatedly; no-op once
+    // the history entry has aggregate_contributed set.
+    async backfill_aggregate_for_today() {
+	if (this.archive_date) return;
+	if (!this.auth_user || !window.WG_AUTH) return;
+	if (!this.stats || !this.stats.daily || !this.stats.daily.history) return;
+	const today = this.iso_today();
+	const h = this.stats.daily.history[today];
+	if (!h) return;                         // didn't play today
+	if (h.aggregate_contributed) return;    // already counted
+	if (h.result !== 'solved' && h.result !== 'gave_up') return;
+	const won = h.result === 'solved';
+	const over = won && (h.steps != null && h.ideal != null)
+	      ? Math.max(0, h.steps - h.ideal)
+	      : 0;
+	// contribute_to_aggregate rereads the flag and writes once.
+	await this.contribute_to_aggregate(won, over);
     }
 
     // Return today's daily state even if the currently-loaded game is
