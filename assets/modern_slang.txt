@@ -49,6 +49,8 @@ meme
 memes
 memeworthy
 farro
+flagger
+flaggers
 latke
 latkes
 napes
