@@ -503,9 +503,17 @@ class Game extends Phaser.Scene {
 	else
 	    this.word_history.y = HISTORY_BOX_Y;
 	if (this.VICTORY) {
-	    const last = words[words.length - 1];
-	    const path = calc_word_path(this.start_word, last, this.word_array, this.word_graph);
-	    this.error_msg.setText(`The shortest possible path is ${path.length - 1} steps.`);
+	    // Use the puzzle's own start-to-goal ideal length (already
+	    // cached in this.word_path at load time) rather than running
+	    // calc_word_path against the player's last word — the last
+	    // word may equal the start word for a synthesised state and
+	    // would return an empty path (giving "... -1 steps").
+	    const ideal = (this.word_path && this.word_path.length > 0)
+		  ? this.word_path.length - 1 : null;
+	    if (ideal !== null)
+		this.error_msg.setText(`The shortest possible path is ${ideal} steps.`);
+	    else
+		this.error_msg.setText("");
 	    this.score_counter.setText(`WIN IN ${this.count}!`);
 	    if (this.ideal_history) this.ideal_history.setText("");
 	} else if (this.GAVE_UP) {
@@ -641,8 +649,17 @@ class Game extends Phaser.Scene {
 	return `${yyyy}-${mm}-${dd}`;
     }
 
-    // Did today's daily end (won or gave up)?
+    // Did today's daily end (won or gave up)? Looks in the same order
+    // load_daily_state does: stats.daily.current (Firestore-synced),
+    // then stats.daily.history, then the per-day localStorage key.
     daily_ended_today() {
+	const today = this.iso_today();
+	const sd = this.stats && this.stats.daily;
+	if (sd && sd.current && sd.current.date === today
+		&& (sd.current.victory || sd.current.gave_up)) return true;
+	if (sd && sd.history && sd.history[today]
+		&& (sd.history[today].result === 'solved'
+		 || sd.history[today].result === 'gave_up')) return true;
 	const key = this.daily_storage_key();
 	if (!key) return false;
 	try {
