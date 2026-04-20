@@ -401,6 +401,31 @@ class Game extends Phaser.Scene {
 	this.word_path = calc_word_path(this.start_word, this.goal_word.text,
 					this.word_array, this.word_graph);
 	this.reset_game_state();
+
+	// If the player already solved or gave up on this past daily,
+	// restore the final state and keep it static — stats must never be
+	// edited after the fact.
+	const h = this.stats && this.stats.daily && this.stats.daily.history
+		&& this.stats.daily.history[iso_date];
+	if (h && (h.result === 'solved' || h.result === 'gave_up')) {
+	    this.VICTORY = (h.result === 'solved');
+	    this.GAVE_UP = (h.result === 'gave_up');
+	    this.count = h.steps || 0;
+	    this.stats_recorded = true;   // safety: prevent any re-record path
+	    const ideal = (this.word_path && this.word_path.length > 0)
+		  ? this.word_path.length - 1 : null;
+	    if (this.VICTORY) {
+		this.score_counter.setText(`WIN IN ${this.count}!`);
+		if (ideal !== null)
+		    this.error_msg.setText(`The shortest possible path is ${ideal} steps.`);
+	    } else {
+		this.score_counter.setText("GAVE UP");
+		if (ideal !== null)
+		    this.error_msg.setText(`One ideal solution was ${ideal} steps.`);
+	    }
+	    this.show_solution();
+	}
+
 	this.update_solution_button();
 	this.update_daily_button();
 	this.update_archive_indicator();
@@ -448,8 +473,11 @@ class Game extends Phaser.Scene {
 	if (this.archive_date) {
 	    const d = new Date(this.archive_date + 'T12:00:00Z');
 	    const mon = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+	    const h = this.stats && this.stats.daily && this.stats.daily.history
+		    && this.stats.daily.history[this.archive_date];
+	    const tag = h ? (h.result === 'solved' ? ' (solved)' : ' (gave up)') : '';
 	    this.archive_label.setText(
-		`ARCHIVE · ${d.getUTCDate()} ${mon[d.getUTCMonth()]} ${d.getUTCFullYear()} · tap DAILY to return`
+		`ARCHIVE · ${d.getUTCDate()} ${mon[d.getUTCMonth()]} ${d.getUTCFullYear()}${tag} · tap DAILY to return`
 	    );
 	} else {
 	    this.archive_label.setText("");
@@ -894,6 +922,11 @@ class Game extends Phaser.Scene {
     // Do some stuff when enter is pressed on the input box
     handle_press_enter() {
 	if (this.modal_open) return;
+	// Archived daily already won/lost: board is view-only.
+	if (this.archive_date && this.game_over()) {
+	    this.input_box.getChildByName("input_word").value = "";
+	    return;
+	}
 	let input_word = this.input_box.getChildByName("input_word").value.toUpperCase();
         this.input_box.getChildByName("input_word").value = "";
 	if (input_word === "") return;
