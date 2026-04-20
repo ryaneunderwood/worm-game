@@ -629,7 +629,7 @@ class Game extends Phaser.Scene {
 	const s = this.stats_modal_state;
 	if (!s) return;
 	if (s.container && !s.container.__closed) s.container.destroy();
-	this.show_stats_modal(s.mode, s.won);
+	this.show_stats_modal(s.mode, s.won, s.tab);
     }
 
     iso_today() {
@@ -983,13 +983,145 @@ class Game extends Phaser.Scene {
 	this.load_gamemodes();
     }
 
-    // Build + show a dismissible stats overlay. `won` controls the title
-    // (finished vs. gave up); mode selects which stats bucket to read.
-    // Always renders the same fixed set of outcome bars (Ideal, 1..4, 5+,
-    // Gave Up) so layouts stay consistent as the player's history grows.
-    // Bars are drawn as rounded segments for a worm-body look.
-    show_stats_modal(mode, won) {
-	const st = this.stats[mode];
+    // Render a 42-cell daily-calendar grid (6 rows x 7 cols), anchored
+    // so today sits in its natural weekday column of the bottom row.
+    // Green = solved, red = gave-up, muted = not played; today gets a
+    // blue outline.
+    _render_calendar_tab(items, bx, bw, y0, greenColor, redColor, mutedColor) {
+	const cell = 32;
+	const gap  = 4;
+	const cols = 7;
+	const rows = 6;
+	const grid_w = cols * cell + (cols - 1) * gap;
+	const grid_x = bx + (bw - grid_w) / 2;
+
+	// Weekday header (S M T W T F S, Sun-first).
+	const days = ['S','M','T','W','T','F','S'];
+	for (let c = 0; c < cols; c++) {
+	    const cx = grid_x + c * (cell + gap) + cell / 2;
+	    const h = this.add.text(cx, y0, days[c],
+				    { fontSize: 11, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(h);
+	}
+
+	const history = (this.stats && this.stats.daily && this.stats.daily.history) || {};
+	const today_iso = this.iso_today();
+	const et = this.et_today_parts();
+	const today_utc = new Date(`${et.year}-${et.month}-${et.day}T12:00:00Z`);
+	const today_dow = today_utc.getUTCDay();                // 0=Sun..6=Sat
+	const cells_total = rows * cols;
+	// Position of today in the grid: last-row + today's weekday column.
+	const today_slot = (rows - 1) * cols + today_dow;
+
+	const blueColor = Phaser.Display.Color.HexStringToColor(COLOR_BLUE).color;
+	const grid_y = y0 + 20;
+	for (let i = 0; i < cells_total; i++) {
+	    const col = i % cols;
+	    const row = Math.floor(i / cols);
+	    const cx = grid_x + col * (cell + gap);
+	    const cy = grid_y + row * (cell + gap);
+
+	    const offset = i - today_slot;           // +1 = tomorrow, -1 = yesterday
+	    const d = new Date(today_utc);
+	    d.setUTCDate(d.getUTCDate() + offset);
+	    const yyyy = d.getUTCFullYear();
+	    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+	    const dd = String(d.getUTCDate()).padStart(2, '0');
+	    const iso = `${yyyy}-${mm}-${dd}`;
+
+	    const h = history[iso];
+	    const is_today  = (iso === today_iso);
+	    const is_future = (offset > 0);
+
+	    const g = this.add.graphics();
+	    let fill_color, fill_alpha;
+	    if (h && h.result === 'solved')         { fill_color = greenColor; fill_alpha = 0.85; }
+	    else if (h && h.result === 'gave_up')   { fill_color = redColor;   fill_alpha = 0.85; }
+	    else if (is_future)                      { fill_color = mutedColor; fill_alpha = 0.08; }
+	    else                                     { fill_color = mutedColor; fill_alpha = 0.25; }
+	    g.fillStyle(fill_color, fill_alpha).fillRoundedRect(cx, cy, cell, cell, 5);
+	    if (is_today) {
+		g.lineStyle(1.8, blueColor, 0.95).strokeRoundedRect(cx, cy, cell, cell, 5);
+	    }
+	    items.push(g);
+
+	    // Day-of-month label in-cell so the grid reads as a calendar.
+	    const label = this.add.text(cx + cell / 2, cy + cell / 2, String(d.getUTCDate()),
+					{ fontSize: 10, fontFamily: "'Inter', sans-serif",
+					  color: (h ? COLOR_BG : COLOR_MUTED),
+					  fontStyle: is_today ? "600" : "400" })
+		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+	    items.push(label);
+	}
+
+	const legend_y = grid_y + rows * (cell + gap) + 10;
+	const legend = this.add.text(WINDOW_WIDTH / 2, legend_y,
+				     "● solved   ● gave up   ● not played",
+				     { fontSize: 11, fontFamily: "'Inter', sans-serif",
+				       color: COLOR_MUTED })
+	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	items.push(legend);
+    }
+
+    // Copy today's daily result to the clipboard in a short shareable
+    // form. Returns true on success, false on failure (e.g. browser
+    // blocks clipboard access outside of a gesture).
+    async share_result() {
+	if (this.mode !== 'daily' && !(this.stats && this.stats.daily
+	    && this.stats.daily.current
+	    && this.stats.daily.current.date === this.iso_today())) return false;
+	const n = this.daily_puzzle_number();
+	const cur = (this.stats && this.stats.daily && this.stats.daily.current) || {};
+	const won = !!(this.VICTORY || cur.victory);
+	const gave = !!(this.GAVE_UP || cur.gave_up);
+	const ideal = (this.word_path && this.word_path.length > 0)
+	      ? this.word_path.length - 1
+	      : (this.stats && this.stats.daily && this.stats.daily.history
+		 && this.stats.daily.history[this.iso_today()]
+		 && this.stats.daily.history[this.iso_today()].ideal) || null;
+	const steps = (this.count > 0) ? this.count : (cur.count || 0);
+
+	let header;
+	if (won) {
+	    const over = (ideal !== null) ? Math.max(0, steps - ideal) : 0;
+	    header = `Worm Game #${n} — ${steps}/${ideal || '?'}` + (over ? ` (+${over})` : '');
+	} else if (gave) {
+	    header = `Worm Game #${n} — gave up`;
+	} else {
+	    return false;
+	}
+	const emoji = gave ? '🔴' : '🟢';
+	const body_len = won ? steps : (ideal || 1);
+	const grid = emoji.repeat(Math.max(1, body_len));
+	const url = 'https://soft-shade.github.io/worm-game/';
+	const text = `${header}\n${grid}\n${url}`;
+
+	try {
+	    if (navigator.clipboard && navigator.clipboard.writeText) {
+		await navigator.clipboard.writeText(text);
+		return true;
+	    }
+	    // Fallback: textarea + execCommand (older browsers / http contexts).
+	    const ta = document.createElement('textarea');
+	    ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+	    document.body.appendChild(ta); ta.select();
+	    const ok = document.execCommand('copy');
+	    document.body.removeChild(ta);
+	    return ok;
+	} catch (e) { return false; }
+    }
+
+    // Build + show a dismissible stats overlay. `mode` identifies the
+    // game-mode context (the caller's current game) so highlights /
+    // subtitles can show the just-finished result. `tab` picks which
+    // view is rendered: 'daily' / 'practice' (distribution bars for
+    // that mode) or 'calendar' (per-day daily-history grid).
+    show_stats_modal(mode, won, tab) {
+	if (!tab) tab = (mode === 'practice') ? 'practice' : 'daily';
+	// Which stats bucket to render (only for bar-view tabs).
+	const stats_key = (tab === 'practice') ? 'practice' : 'daily';
+	const st = this.stats[stats_key];
 	const container = this.add.container(0, 0).setDepth(1000);
 	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 0.75)
 	      .setOrigin(0, 0).setInteractive();
@@ -1012,145 +1144,172 @@ class Game extends Phaser.Scene {
 				       color: COLOR_GREEN, fontStyle: "700" })
 	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
 
-	const mode_label = (mode === 'daily')
-	      ? `DAILY PUZZLE #${this.daily_puzzle_number()}`
-	      : 'UNLIMITED';
+	const items = [backdrop, panel, header];
 
-	// Subtitle composition depends on whether the current game has
-	// ended. Mid-game ("STATISTICS" tap during play) shows just the
-	// mode label; ended games show the result plus the ideal length.
+	// Result subtitle — only when viewing the tab whose mode matches
+	// the caller's completed-game context.
+	const ended = this.game_over();
 	const ideal_steps = (this.word_path && this.word_path.length > 0)
 	      ? this.word_path.length - 1 : null;
-	const ended = this.game_over();
-	let main_str = mode_label;
-	if (ended && this.VICTORY) main_str = `${mode_label} — SOLVED (${this.count} steps)`;
-	else if (ended && this.GAVE_UP) main_str = `${mode_label} — GAVE UP`;
-	const subtitle = this.add.text(WINDOW_WIDTH / 2, by + 72, main_str,
-				       { fontSize: 18, fontFamily: "'Inter', sans-serif",
-					 color: (ended && !this.VICTORY) ? COLOR_RED
-					     : (ended ? COLOR_GREEN : COLOR_TEXT),
-					 fontStyle: "600" })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-	let ideal_line = null;
-	if (ended && ideal_steps !== null) {
-	    ideal_line = this.add.text(WINDOW_WIDTH / 2, by + 100,
-				       `Ideal Solution (${ideal_steps} steps)`,
-				       { fontSize: 14, fontFamily: "'Inter', sans-serif",
-					 color: COLOR_TEXT })
+	if (tab === mode) {
+	    const mode_label = (mode === 'daily')
+		  ? `DAILY PUZZLE #${this.daily_puzzle_number()}`
+		  : 'UNLIMITED';
+	    let main_str = mode_label;
+	    if (ended && this.VICTORY) main_str = `${mode_label} — SOLVED (${this.count} steps)`;
+	    else if (ended && this.GAVE_UP) main_str = `${mode_label} — GAVE UP`;
+	    const subtitle = this.add.text(WINDOW_WIDTH / 2, by + 64, main_str,
+					   { fontSize: 17, fontFamily: "'Inter', sans-serif",
+					     color: (ended && !this.VICTORY) ? COLOR_RED
+						 : (ended ? COLOR_GREEN : COLOR_TEXT),
+					     fontStyle: "600" })
 		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(subtitle);
+	    if (ended && ideal_steps !== null) {
+		const ideal_line = this.add.text(WINDOW_WIDTH / 2, by + 88,
+						 `Ideal Solution (${ideal_steps} steps)`,
+						 { fontSize: 13, fontFamily: "'Inter', sans-serif",
+						   color: COLOR_TEXT })
+		      .setOrigin(0.5, 0).setResolution(RESOLUTION);
+		items.push(ideal_line);
+	    }
 	}
 
-	const summary_str = `Streak: ${st.streak}   Best: ${st.best_streak}\n` +
-			    `Wins: ${st.wins || 0}   Give ups: ${st.giveups || 0}`;
-	const summary = this.add.text(WINDOW_WIDTH / 2, by + 124, summary_str,
-				      { fontSize: 16, fontFamily: "'Inter', sans-serif",
-					color: COLOR_TEXT, align: "center", lineSpacing: 4 })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-
-	const section_header = this.add.text(WINDOW_WIDTH / 2, by + 174, "Outcome distribution",
-					     { fontSize: 13, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-
-	// Bucket the distribution + the give-up count.
-	const dist = st.distribution || {};
-	const bucket = (k) => dist[String(k)] || 0;
-	const over_5_plus = Object.keys(dist).map(Number)
-	      .filter(k => k >= 5)
-	      .reduce((s, k) => s + dist[String(k)], 0);
-	const rows = [
-	    { label: 'Ideal',   count: bucket(0),          color: greenColor },
-	    { label: '1',       count: bucket(1),          color: greenColor },
-	    { label: '2',       count: bucket(2),          color: greenColor },
-	    { label: '3',       count: bucket(3),          color: greenColor },
-	    { label: '4',       count: bucket(4),          color: greenColor },
-	    { label: '5+',      count: over_5_plus,        color: greenColor },
-	    { label: 'Gave Up', count: st.giveups || 0,    color: redColor   },
+	// ---- Tab bar ----
+	const tab_y = by + 120;
+	const tab_defs = [
+	    { id: 'daily',     label: 'DAILY'     },
+	    { id: 'practice',  label: 'UNLIMITED' },
+	    { id: 'calendar',  label: 'CALENDAR'  },
 	];
-	const max_count = Math.max(1, ...rows.map(r => r.count));
-
-	// Column positions. Labels are right-aligned 10 px left of the bar
-	// start; the bar track is fixed width; the count is right-aligned
-	// ~20 px past the bar end.
-	const bar_x = bx + 115;
-	const bar_end_x = bx + bw - 55;
-	const bar_w_full = bar_end_x - bar_x;
-	const count_col_x = bar_end_x + 20;
-	const bar_h = 18;
-	const row_gap = 30;
-	const rows_start_y = by + 200;
-	const label_right_x = bar_x - 10;
-
-	// Which row corresponds to the just-completed game? Used to flag
-	// the matching row visually. Only set when the game has ended.
-	let active_row = -1;
-	if (ended) {
-	    if (this.GAVE_UP) active_row = 6;
-	    else if (this.VICTORY && ideal_steps !== null) {
-		const over = Math.max(0, this.count - ideal_steps);
-		active_row = Math.min(over, 5);
-	    }
-	}
-
-	// Draw the worm as a capsule (rounded rect with radius = h/2) so
-	// its end caps match the rounded ends of the grey track behind it,
-	// then add thin darker vertical lines across the middle as ribs.
-	const draw_worm = (g, x, y, w, h, color_int) => {
-	    if (w <= 0) return;
-	    g.fillStyle(color_int, 0.95);
-	    g.fillRoundedRect(x, y, w, h, h / 2);
-
-	    // Ribbing across the body, clear of the rounded caps.
-	    const cap = h / 2;
-	    const rib_spacing = 22;
-	    const rib_start = x + cap + 4;
-	    const rib_end = x + w - cap - 4;
-	    g.lineStyle(1.2, 0x000000, 0.28);
-	    for (let rx = rib_start; rx <= rib_end; rx += rib_spacing) {
-		g.beginPath();
-		g.moveTo(rx, y + 2);
-		g.lineTo(rx, y + h - 2);
-		g.strokePath();
-	    }
-	};
-
-	const items = [backdrop, panel, header, subtitle, summary, section_header];
-	if (ideal_line) items.push(ideal_line);
-	for (let i = 0; i < rows.length; i++) {
-	    const r = rows[i];
-	    const row_y = rows_start_y + i * row_gap;
-	    const is_active = (i === active_row);
-	    const label_color = is_active ? (i === 6 ? COLOR_RED : COLOR_GREEN) : COLOR_TEXT;
-
-	    // Highlight: subtle filled rounded rect spanning the row, plus
-	    // a tiny pointer marker in front of the label.
+	const tab_spacing = 92;
+	tab_defs.forEach((t, i) => {
+	    const tx = WINDOW_WIDTH / 2 + (i - 1) * tab_spacing;
+	    const is_active = (t.id === tab);
+	    const txt = this.add.text(tx, tab_y, t.label,
+				      { fontSize: 13, fontFamily: "'Inter', sans-serif",
+					color: is_active ? COLOR_GREEN : COLOR_MUTED,
+					fontStyle: is_active ? "600" : "400" })
+		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+	    items.push(txt);
 	    if (is_active) {
-		const hl = this.add.graphics();
-		const accent = (i === 6) ? redColor : greenColor;
-		hl.fillStyle(accent, 0.10);
-		hl.fillRoundedRect(bx + 12, row_y - 4, bw - 24, bar_h + 8, 6);
-		items.push(hl);
+		const underline = this.add.graphics();
+		const ulc = Phaser.Display.Color.HexStringToColor(COLOR_GREEN).color;
+		underline.fillStyle(ulc, 0.9).fillRect(tx - 22, tab_y + 10, 44, 2);
+		items.push(underline);
+	    } else {
+		txt.setInteractive();
+		txt.on('pointerdown', () => {
+		    close(false);
+		    this.show_stats_modal(mode, won, t.id);
+		});
+	    }
+	});
+
+	const content_y = by + 142;
+
+	// ---- Tab content ----
+	if (tab === 'calendar') {
+	    this._render_calendar_tab(items, bx, bw, content_y,
+				      greenColor, redColor, mutedColor);
+	} else {
+	    // Distribution bars for the 'daily' / 'practice' stats bucket.
+	    const summary_str = `Streak: ${st.streak}   Best: ${st.best_streak}\n` +
+				  `Wins: ${st.wins || 0}   Give ups: ${st.giveups || 0}`;
+	    const summary = this.add.text(WINDOW_WIDTH / 2, content_y, summary_str,
+					  { fontSize: 15, fontFamily: "'Inter', sans-serif",
+					    color: COLOR_TEXT, align: "center", lineSpacing: 4 })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(summary);
+
+	    const section_header = this.add.text(WINDOW_WIDTH / 2, content_y + 50,
+						 "Outcome distribution",
+						 { fontSize: 12, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
+		  .setOrigin(0.5, 0).setResolution(RESOLUTION);
+	    items.push(section_header);
+
+	    const dist = st.distribution || {};
+	    const bucket = (k) => dist[String(k)] || 0;
+	    const over_5_plus = Object.keys(dist).map(Number)
+		  .filter(k => k >= 5)
+		  .reduce((s, k) => s + dist[String(k)], 0);
+	    const rows = [
+		{ label: 'Ideal',   count: bucket(0),          color: greenColor },
+		{ label: '1',       count: bucket(1),          color: greenColor },
+		{ label: '2',       count: bucket(2),          color: greenColor },
+		{ label: '3',       count: bucket(3),          color: greenColor },
+		{ label: '4',       count: bucket(4),          color: greenColor },
+		{ label: '5+',      count: over_5_plus,        color: greenColor },
+		{ label: 'Gave Up', count: st.giveups || 0,    color: redColor   },
+	    ];
+	    const max_count = Math.max(1, ...rows.map(r => r.count));
+	    const bar_x = bx + 115;
+	    const bar_end_x = bx + bw - 55;
+	    const bar_w_full = bar_end_x - bar_x;
+	    const count_col_x = bar_end_x + 20;
+	    const bar_h = 18;
+	    const row_gap = 28;
+	    const rows_start_y = content_y + 74;
+	    const label_right_x = bar_x - 10;
+
+	    // Row highlight: only when the viewed tab matches the mode whose
+	    // game just ended (so it reflects the game the player just
+	    // finished, not some other mode's recent result).
+	    let active_row = -1;
+	    if (ended && tab === mode) {
+		if (this.GAVE_UP) active_row = 6;
+		else if (this.VICTORY && ideal_steps !== null) {
+		    const over = Math.max(0, this.count - ideal_steps);
+		    active_row = Math.min(over, 5);
+		}
 	    }
 
-	    const label = this.add.text(label_right_x, row_y + bar_h / 2, r.label,
-					{ fontSize: 14, fontFamily: "'Inter', sans-serif",
-					  color: label_color, fontStyle: is_active ? "600" : "400" })
-		  .setOrigin(1, 0.5).setResolution(RESOLUTION);
+	    const draw_worm = (g, x, y, w, h, color_int) => {
+		if (w <= 0) return;
+		g.fillStyle(color_int, 0.95);
+		g.fillRoundedRect(x, y, w, h, h / 2);
+		const cap = h / 2;
+		const rib_spacing = 22;
+		const rib_start = x + cap + 4;
+		const rib_end = x + w - cap - 4;
+		g.lineStyle(1.2, 0x000000, 0.28);
+		for (let rx = rib_start; rx <= rib_end; rx += rib_spacing) {
+		    g.beginPath();
+		    g.moveTo(rx, y + 2);
+		    g.lineTo(rx, y + h - 2);
+		    g.strokePath();
+		}
+	    };
 
-	    const bar = this.add.graphics();
-	    // Empty track along the full width, so zero-count rows still
-	    // read as a slot in the chart.
-	    bar.fillStyle(mutedColor, 0.20).fillRoundedRect(bar_x, row_y, bar_w_full, bar_h, bar_h / 2);
-	    if (r.count > 0) {
-		const fw = (r.count / max_count) * bar_w_full;
-		draw_worm(bar, bar_x, row_y, fw, bar_h, r.color);
+	    for (let i = 0; i < rows.length; i++) {
+		const r = rows[i];
+		const row_y = rows_start_y + i * row_gap;
+		const is_active = (i === active_row);
+		const label_color = is_active ? (i === 6 ? COLOR_RED : COLOR_GREEN) : COLOR_TEXT;
+
+		if (is_active) {
+		    const hl = this.add.graphics();
+		    const accent = (i === 6) ? redColor : greenColor;
+		    hl.fillStyle(accent, 0.10);
+		    hl.fillRoundedRect(bx + 12, row_y - 4, bw - 24, bar_h + 8, 6);
+		    items.push(hl);
+		}
+		const label = this.add.text(label_right_x, row_y + bar_h / 2, r.label,
+					    { fontSize: 14, fontFamily: "'Inter', sans-serif",
+					      color: label_color, fontStyle: is_active ? "600" : "400" })
+		      .setOrigin(1, 0.5).setResolution(RESOLUTION);
+		const bar = this.add.graphics();
+		bar.fillStyle(mutedColor, 0.20).fillRoundedRect(bar_x, row_y, bar_w_full, bar_h, bar_h / 2);
+		if (r.count > 0) {
+		    const fw = (r.count / max_count) * bar_w_full;
+		    draw_worm(bar, bar_x, row_y, fw, bar_h, r.color);
+		}
+		const count = this.add.text(count_col_x, row_y + bar_h / 2, String(r.count),
+					    { fontSize: 14, fontFamily: "'Inter', sans-serif",
+					      color: label_color, fontStyle: is_active ? "600" : "400" })
+		      .setOrigin(1, 0.5).setResolution(RESOLUTION);
+		items.push(label, bar, count);
 	    }
-
-	    const count = this.add.text(count_col_x, row_y + bar_h / 2, String(r.count),
-					{ fontSize: 14, fontFamily: "'Inter', sans-serif",
-					  color: label_color, fontStyle: is_active ? "600" : "400" })
-		  .setOrigin(1, 0.5).setResolution(RESOLUTION);
-
-	    items.push(label, bar, count);
 	}
 
 	container.add(items);
@@ -1180,31 +1339,37 @@ class Game extends Phaser.Scene {
 
 	// Track open modal so refresh_stats_modal (called from
 	// onAuthStateChanged) can rebuild it after sign-in / sign-out.
-	this.stats_modal_state = { mode, won, container };
+	this.stats_modal_state = { mode, won, tab, container };
 
-	// Practice-only action buttons, shown when the stats modal pops up
-	// with a finished game: View Ideal Solution + New Puzzle.
-	const show_actions = (mode === 'practice' && this.game_over());
-	if (show_actions) {
+	// ---- Footer buttons ----
+	// Practice tab, current-game-over: View Ideal Solution + New Puzzle.
+	if (tab === 'practice' && mode === 'practice' && this.game_over()) {
 	    const btn_y = by + bh - 46;
 	    const view_btn = this.add_button(bx + bw * 0.28, btn_y, "VIEW IDEAL SOLUTION",
 					     14, COLOR_TEXT, 0.5, 0.5, 12, 7);
-	    view_btn.zone.on('pointerdown', () => {
-		this.show_solution();
-		close(false);
-	    });
+	    view_btn.zone.on('pointerdown', () => { this.show_solution(); close(false); });
 	    const new_btn = this.add_button(bx + bw * 0.72, btn_y, "NEW PUZZLE",
 					    14, COLOR_GREEN, 0.5, 0.5, 12, 7);
-	    new_btn.zone.on('pointerdown', () => {
-		close(false);
-		this.start_new_practice();
-	    });
+	    new_btn.zone.on('pointerdown', () => { close(false); this.start_new_practice(); });
 	    container.add([view_btn.box, view_btn.text, view_btn.zone,
 			   new_btn.box, new_btn.text, new_btn.zone]);
-	} else if (mode === 'daily') {
-	    // Daily stats: bottom-middle bubble for Google sign-in / out.
-	    // While signed in the Firestore stats are the only ones counted.
+	} else if (tab === 'daily') {
+	    // Share button (if today's daily ended) + Google sign-in bubble.
+	    const daily_done = this.daily_ended_today();
+	    if (daily_done) {
+		const share_btn = this.add_button(bx + bw * 0.28, by + bh - 46, "SHARE",
+						  14, COLOR_GREEN, 0.5, 0.5, 14, 7);
+		share_btn.zone.on('pointerdown', async () => {
+		    const ok = await this.share_result();
+		    share_btn.text.setText(ok ? "COPIED!" : "COPY FAILED");
+		    this.time.delayedCall(1500, () => {
+			if (share_btn.text.active) share_btn.text.setText("SHARE");
+		    });
+		});
+		container.add([share_btn.box, share_btn.text, share_btn.zone]);
+	    }
 	    const btn_y = by + bh - 46;
+	    const auth_x = daily_done ? bx + bw * 0.72 : WINDOW_WIDTH / 2;
 	    let label, color;
 	    if (!window.WG_AUTH) {
 		label = "SIGN-IN UNAVAILABLE"; color = COLOR_MUTED;
@@ -1214,8 +1379,7 @@ class Game extends Phaser.Scene {
 	    } else {
 		label = "SIGN IN WITH GOOGLE"; color = COLOR_GREEN;
 	    }
-	    const auth_btn = this.add_button(WINDOW_WIDTH / 2, btn_y, label,
-					     14, color, 0.5, 0.5, 12, 7);
+	    const auth_btn = this.add_button(auth_x, btn_y, label, 14, color, 0.5, 0.5, 12, 7);
 	    if (window.WG_AUTH) {
 		auth_btn.zone.on('pointerdown', () => {
 		    if (this.auth_user) this.sign_out();
