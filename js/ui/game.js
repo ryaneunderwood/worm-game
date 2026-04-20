@@ -68,7 +68,7 @@ class Game extends Phaser.Scene {
 	this.start_word = this.daily_start;
 	this.goal_word.setText(this.daily_goal);
 	this.word_path = calc_word_path(this.start_word,this.goal_word.text,this.word_array,this.word_graph)
-	const saved = this.load_daily_state();
+	const saved = this.load_daily_state() || this.synth_daily_from_history();
 	if (saved) this.apply_daily_state(saved);
 	else this.reset_game_state();
 	// If today's daily is already complete (won or gave up), surface
@@ -324,21 +324,64 @@ class Game extends Phaser.Scene {
 	    gave_up: !!this.GAVE_UP,
 	    stats_recorded: !!this.stats_recorded,
 	    complaint_counter: this.complaint_counter || 0,
+	    date: this.iso_today(),
 	};
 	try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
+	// Mirror into the stats doc so signed-in users have it on
+	// Firestore too. save_stats handles both the localStorage cache
+	// and the debounced Firestore write.
+	if (!this.stats) this.stats = this.default_stats();
+	if (!this.stats.daily) this.stats.daily = {};
+	this.stats.daily.current = state;
+	this.save_stats();
     }
 
     load_daily_state() {
+	// Prefer the freshest source: the stats doc's daily.current, which
+	// Firestore syncs on sign-in. Only fall back to per-day localStorage
+	// when the stats doc has nothing or has a stale date.
+	const today = this.iso_today();
 	const key = this.daily_storage_key();
+	const cur = this.stats && this.stats.daily && this.stats.daily.current;
+	if (cur && cur.date === today
+		&& cur.start === this.daily_start
+		&& cur.goal === this.daily_goal) {
+	    try { if (key) localStorage.setItem(key, JSON.stringify(cur)); } catch (e) {}
+	    return cur;
+	}
 	if (!key) return null;
 	try {
 	    const raw = localStorage.getItem(key);
 	    if (!raw) return null;
 	    const s = JSON.parse(raw);
-	    // Guard against stale state: start/goal must match today's puzzle.
 	    if (s.start !== this.daily_start || s.goal !== this.daily_goal) return null;
 	    return s;
 	} catch (e) { return null; }
+    }
+
+    // Fallback synthesis when the stats doc tells us today's daily
+    // already ended (via daily.history[today]) but no full daily.current
+    // record exists — e.g. a user whose saves predate the current-state
+    // mirroring, or whose local copy got wiped. Reconstructs enough of
+    // the state for the UI to render the game as finished.
+    synth_daily_from_history() {
+	const today = this.iso_today();
+	const st = this.stats && this.stats.daily;
+	if (!st || !st.history) return null;
+	const h = st.history[today];
+	if (!h) return null;
+	if (h.result !== 'solved' && h.result !== 'gave_up') return null;
+	return {
+	    start: this.daily_start,
+	    goal: this.daily_goal,
+	    words: [this.daily_start.toUpperCase()],
+	    count: h.steps || 0,
+	    victory: h.result === 'solved',
+	    gave_up: h.result === 'gave_up',
+	    stats_recorded: true,
+	    complaint_counter: 0,
+	    date: today,
+	};
     }
 
     clear_daily_state() {
@@ -527,6 +570,14 @@ class Game extends Phaser.Scene {
 		    this.stats = remote && remote.daily ? remote : this.default_stats();
 		    try { localStorage.setItem(this.STATS_KEY(), JSON.stringify(this.stats)); } catch (e) {}
 		    if (!remote) this.save_stats_remote();   // seed empty doc
+		    // If we're currently showing the daily puzzle, re-apply
+		    // today's state from the freshly-synced stats doc. This
+		    // catches the case where local storage was wiped / is out
+		    // of date but Firestore has today's result.
+		    if (this.mode === 'daily') {
+			const s = this.load_daily_state() || this.synth_daily_from_history();
+			if (s) this.apply_daily_state(s);
+		    }
 		} catch (e) { console.warn("remote stats fetch failed:", e); }
 	    } else if (!user && was) {
 		// Just signed out: reload whatever is in localStorage.
@@ -1249,7 +1300,7 @@ class Game extends Phaser.Scene {
 	    this.word_path = calc_word_path(this.start_word, this.goal_word.text, this.word_array, this.word_graph);
 	    this.set_active_mode('daily');
 	    this.update_solution_button();
-	    const saved = this.load_daily_state();
+	    const saved = this.load_daily_state() || this.synth_daily_from_history();
 	    if (saved) this.apply_daily_state(saved);
 	    else this.reset_game_state();
 	});
