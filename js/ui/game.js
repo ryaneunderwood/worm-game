@@ -515,7 +515,7 @@ class Game extends Phaser.Scene {
 	    else
 		this.error_msg.setText("");
 	    this.score_counter.setText(`WIN IN ${this.count}!`);
-	    if (this.ideal_history) this.ideal_history.setText("");
+	    this.show_solution();   // render ideal in the right column too
 	} else if (this.GAVE_UP) {
 	    this.score_counter.setText("GAVE UP");
 	    this.show_solution();   // re-render ideal in the right column
@@ -839,6 +839,7 @@ class Game extends Phaser.Scene {
 		this.error_msg.setText(`The shortest possible path is ${ideal_steps} steps.`);
 		this.score_counter.setText(`WIN IN ${++this.count}!`);
 		this.VICTORY = true;
+		this.show_solution();   // also display the ideal in the right column
 		if (!this.stats_recorded && (this.mode === 'daily' || this.mode === 'practice')) {
 		    const over = Math.max(0, this.count - ideal_steps);
 		    this.record_win(this.mode, over);
