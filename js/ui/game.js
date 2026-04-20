@@ -279,12 +279,19 @@ class Game extends Phaser.Scene {
 	return `worm_game_daily:${p.year}-${p.month}-${p.day}`;
     }
 
-    // Sequential puzzle number, with 2026-04-17 (ET) as #1.
-    daily_puzzle_number() {
-	const p = this.et_today_parts();
-	const today = new Date(`${p.year}-${p.month}-${p.day}T12:00:00Z`);
+    // Sequential puzzle number, with 2026-04-17 (ET) as #1. Pass an ISO
+    // date ("YYYY-MM-DD") to get the number for that date; otherwise
+    // today (ET) is used.
+    daily_puzzle_number(iso) {
+	let target;
+	if (iso) {
+	    target = new Date(`${iso}T12:00:00Z`);
+	} else {
+	    const p = this.et_today_parts();
+	    target = new Date(`${p.year}-${p.month}-${p.day}T12:00:00Z`);
+	}
 	const ref = new Date('2026-04-17T12:00:00Z');
-	return Math.round((today - ref) / 86400000) + 1;
+	return Math.round((target - ref) / 86400000) + 1;
     }
 
     // Today's calendar date in America/New_York. Daily puzzles roll
@@ -395,6 +402,7 @@ class Game extends Phaser.Scene {
 					this.word_array, this.word_graph);
 	this.reset_game_state();
 	this.update_solution_button();
+	this.update_daily_button();
 	this.update_archive_indicator();
     }
 
@@ -402,6 +410,37 @@ class Game extends Phaser.Scene {
 	if (!this.archive_date) return;
 	this.archive_date = null;
 	this.update_archive_indicator();
+	this.update_daily_button();
+    }
+
+    // (Re)build the centre DAILY PUZZLE button so its label shows
+    // either today's puzzle number or, if we're in archive mode, the
+    // archived date's number. Rebuild (rather than setText) keeps the
+    // bubble centred even when the digit count changes.
+    update_daily_button() {
+	const PAD_X = 18, PAD_Y = 10;
+	if (this.daily_challenge) {
+	    this.daily_challenge.text.destroy();
+	    this.daily_challenge.box.destroy();
+	    this.daily_challenge.zone.destroy();
+	}
+	const n = this.daily_puzzle_number(this.archive_date || null);
+	const label = `DAILY PUZZLE #${n}`;
+	this.daily_challenge = this.add_button(GMODE2_X, GMODE2_Y, label,
+					       WORD_FONTSIZE, COLOR_GREEN,
+					       0.5, 0, PAD_X, PAD_Y);
+	this.daily_challenge.zone.on('pointerdown', () => {
+	    this.exit_archive();
+	    this.start_word = this.daily_start;
+	    this.goal_word.setText(this.daily_goal);
+	    this.word_path = calc_word_path(this.start_word, this.goal_word.text,
+					    this.word_array, this.word_graph);
+	    this.set_active_mode('daily');
+	    this.update_solution_button();
+	    const saved = this.load_daily_state() || this.synth_daily_from_history();
+	    if (saved) this.apply_daily_state(saved);
+	    else this.reset_game_state();
+	});
     }
 
     update_archive_indicator() {
@@ -1291,6 +1330,17 @@ class Game extends Phaser.Scene {
 
 	const items = [backdrop, panel, header];
 
+	// Close (X) button at the top-right of the panel. Replaces the
+	// previous "tap anywhere to close" behaviour.
+	const close_x = this.add.text(bx + bw - 20, by + 22, "×",
+				      { fontSize: 26, fontFamily: "'Inter', sans-serif",
+					color: COLOR_MUTED, fontStyle: "600" })
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION).setInteractive();
+	close_x.on('pointerover', () => close_x.setColor(COLOR_TEXT));
+	close_x.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
+	close_x.on('pointerdown', () => close(false));
+	items.push(close_x);
+
 	// Result subtitle — only when viewing the tab whose mode matches
 	// the caller's completed-game context.
 	const ended = this.game_over();
@@ -1484,7 +1534,6 @@ class Game extends Phaser.Scene {
 	    container.destroy();
 	};
 	const close_by_key = () => close(true);
-	const close_by_pointer = () => close(false);
 
 	// Track open modal so refresh_stats_modal (called from
 	// onAuthStateChanged) can rebuild it after sign-in / sign-out.
@@ -1539,13 +1588,13 @@ class Game extends Phaser.Scene {
 	    }
 	    container.add([auth_btn.box, auth_btn.text, auth_btn.zone]);
 	    const tip = this.add.text(WINDOW_WIDTH / 2, by + bh - 18,
-				      "Tap, or press Enter / Space / Esc to close.",
+				      "Press X, Enter, Space, or Esc to close.",
 				      { fontSize: 11, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
 		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
 	    container.add(tip);
 	} else {
 	    const tip = this.add.text(WINDOW_WIDTH / 2, by + bh - 22,
-				      "Tap, or press Enter / Space / Esc to close.",
+				      "Press X, Enter, Space, or Esc to close.",
 				      { fontSize: 12, fontFamily: "'Inter', sans-serif", color: COLOR_MUTED })
 		  .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
 	    container.add(tip);
@@ -1555,7 +1604,9 @@ class Game extends Phaser.Scene {
 	kb.on('keydown-ENTER', close_by_key);
 	kb.on('keydown-SPACE', close_by_key);
 	kb.on('keydown-ESC', close_by_key);
-	backdrop.on('pointerdown', close_by_pointer);
+	// Backdrop absorbs clicks (keeping setInteractive() swallows them
+	// so nothing underneath fires) but no longer closes the modal —
+	// the X button in the top-right handles that explicitly.
     }
 
     // A dismissible overlay explaining the rules
@@ -1628,20 +1679,10 @@ class Game extends Phaser.Scene {
 	});
 
 	// Daily puzzle — curated start/goal pair, with the puzzle number
-	// baked into the button label.
-	const daily_label = `DAILY PUZZLE #${this.daily_puzzle_number()}`;
-	this.daily_challenge = this.add_button(GMODE2_X, GMODE2_Y, daily_label, WORD_FONTSIZE, COLOR_GREEN, 0.5, 0, PAD_X, PAD_Y);
-	this.daily_challenge.zone.on('pointerdown', () => {
-	    this.exit_archive();
-	    this.start_word = this.daily_start;
-	    this.goal_word.setText(this.daily_goal);
-	    this.word_path = calc_word_path(this.start_word, this.goal_word.text, this.word_array, this.word_graph);
-	    this.set_active_mode('daily');
-	    this.update_solution_button();
-	    const saved = this.load_daily_state() || this.synth_daily_from_history();
-	    if (saved) this.apply_daily_state(saved);
-	    else this.reset_game_state();
-	});
+	// baked into the button label. update_daily_button() recreates it
+	// so enter_archive / exit_archive can swap in the archived date's
+	// puzzle number.
+	this.update_daily_button();
 
 	// Free play — user enters start and goal words
 	this.free_play = this.add_button(GMODE3_X, GMODE3_Y, "FREE PLAY", SIDE_FONT, COLOR_RED, 1, 0, SIDE_PAD_X, SIDE_PAD_Y);
