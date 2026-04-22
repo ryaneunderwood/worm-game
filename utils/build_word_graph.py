@@ -31,7 +31,7 @@ BLOCKLIST = {
     "nigger", "niggers", "nigga", "niggas",
     "faggot", "faggots", "fag", "fags",
     "dyke", "dykes", "poof", "poofs", "poofter", "lez",
-    "chink", "chinks", "gook", "gooks",
+    "gook", "gooks",
     "kike", "kikes", "yid", "yids", "hebe",
     "spic", "wetback", "wetbacks",
     "coon", "coons", "darkie", "darky", "darkies",
