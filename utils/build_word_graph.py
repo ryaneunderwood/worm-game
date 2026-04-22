@@ -26,6 +26,19 @@ from collections import defaultdict
 BLOCKLIST = {
     "sinh",   # hyperbolic-sine abbreviation; reads like a typo.
     "guid",   # programming identifier abbreviation; reads like a typo.
+    # Racial, ethnic, and sexual-orientation slurs. Removed so they
+    # never appear as puzzle words or solution steps.
+    "nigger", "niggers", "nigga", "niggas",
+    "faggot", "faggots", "fag", "fags",
+    "dyke", "dykes", "poof", "poofs", "poofter", "lez",
+    "chink", "chinks", "gook", "gooks",
+    "kike", "kikes", "yid", "yids", "hebe",
+    "spic", "wetback", "wetbacks",
+    "coon", "coons", "darkie", "darky", "darkies",
+    "squaw", "squaws", "redskin", "redskins",
+    "kraut", "krauts", "mick", "micks", "wop", "wops",
+    "honky", "honkey", "honkies", "honkeys",
+    "gyp", "gypped", "abo", "sambo", "wog", "wogs",
 }
 
 
