@@ -5,6 +5,12 @@ class Intro extends Phaser.Scene {
     }
 
     create() {
+	// Mark the splash as seen for today's ET calendar date. Stamping
+	// here (rather than on PLAY) means a reload mid-intro still skips
+	// the splash next visit, which is what users expect.
+	try { localStorage.setItem('wg_intro_last_seen', et_today_iso()); }
+	catch (_) {}
+
 	const base_size = HISTORY_BOX_FONTSIZE;           // 24
 	const worm_size = base_size * 1.44;               // another 20% up from 1.2x
 	const fade_small_ms = 95;                         // SORE..WORD

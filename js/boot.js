@@ -1,3 +1,15 @@
+// Today's ET calendar date as YYYY-MM-DD. Daily content rolls over at
+// ET midnight, so the once-per-day intro gate uses the same anchor.
+function et_today_iso() {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(new Date())) parts[p.type] = p.value;
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 class Boot extends Phaser.Scene {
 
     constructor () {
@@ -22,7 +34,15 @@ class Boot extends Phaser.Scene {
 
     create () {
 		let scene = this.scene;
-		scene.start('intro');
+		// Show the splash at most once per ET calendar day. Returning
+		// players today get dropped straight into the daily screen.
+		const last = (() => {
+		    try { return localStorage.getItem('wg_intro_last_seen'); }
+		    catch (_) { return null; }
+		})();
+		const today = et_today_iso();
+		if (last === today) scene.start('game');
+		else                scene.start('intro');
     }
 
 }
