@@ -239,7 +239,59 @@ class Game extends Phaser.Scene {
 	}
 	// Daily / Practice mid-game: give up.
 	if (this.game_over()) return;
-	this.give_up();
+	// On mobile a tap on NEW GAME / NEW PUZZLE can carry over to the
+	// freshly-rendered GIVE UP button. Block for 500ms after the
+	// puzzle starts so that doesn't accidentally end the new run.
+	if (this.giveup_lockout_until && Date.now() < this.giveup_lockout_until) return;
+	this.show_giveup_confirm();
+    }
+
+    // Small confirmation modal so a fat-fingered tap on GIVE UP can't
+    // wipe out a streak. YES calls give_up(); NO just dismisses.
+    show_giveup_confirm() {
+	if (this.giveup_confirm_open) return;
+	this.giveup_confirm_open = true;
+	this.modal_open = true;
+	const container = this.add.container(0, 0).setDepth(1100);
+	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 0.7)
+	      .setOrigin(0, 0).setInteractive();
+	const bw = WINDOW_WIDTH * 0.7, bh = 180;
+	const bx = (WINDOW_WIDTH - bw) / 2, by = (WINDOW_HEIGHT - bh) / 2;
+	const fillColor  = Phaser.Display.Color.HexStringToColor(COLOR_BOX_FILL).color;
+	const mutedColor = Phaser.Display.Color.HexStringToColor(COLOR_MUTED).color;
+	const panel = this.add.graphics();
+	panel.fillStyle(0x000000, 0.5).fillRoundedRect(bx + 4, by + 6, bw, bh, 14);
+	panel.fillStyle(fillColor, 1).fillRoundedRect(bx, by, bw, bh, 14);
+	panel.lineStyle(1.5, mutedColor, 0.8).strokeRoundedRect(bx, by, bw, bh, 14);
+
+	const title = this.add.text(WINDOW_WIDTH / 2, by + 36, "GIVE UP?",
+				    { fontSize: 26, fontFamily: "'Inter', sans-serif",
+				      color: COLOR_RED, fontStyle: "600" })
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+	const body = this.add.text(WINDOW_WIDTH / 2, by + 78,
+				   "This will end your run and break\nyour streak. Are you sure?",
+				   { fontSize: 15, fontFamily: "'Inter', sans-serif",
+				     color: COLOR_TEXT, align: "center", lineSpacing: 4 })
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+
+	const btn_y = by + bh - 38;
+	const yes_btn = this.add_button(bx + bw * 0.3, btn_y, "YES, GIVE UP", 14, COLOR_RED, 0.5, 0.5, 14, 8);
+	const no_btn  = this.add_button(bx + bw * 0.7, btn_y, "CANCEL",       14, COLOR_GREEN, 0.5, 0.5, 14, 8);
+
+	const close = () => {
+	    container.destroy();
+	    this.giveup_confirm_open = false;
+	    // Defer one tick so the dismissing keystroke (if any) doesn't
+	    // get picked up by handle_press_enter as a "submit guess".
+	    this.time.delayedCall(0, () => { this.modal_open = false; });
+	};
+	yes_btn.zone.on('pointerdown', () => { close(); this.give_up(); });
+	no_btn.zone.on('pointerdown', close);
+	backdrop.on('pointerdown', close);
+
+	container.add([backdrop, panel, title, body,
+		       yes_btn.box, yes_btn.text, yes_btn.zone,
+		       no_btn.box, no_btn.text, no_btn.zone]);
     }
 
     give_up() {
@@ -607,6 +659,11 @@ class Game extends Phaser.Scene {
 	this.reset_game_state();
 	this.save_practice_state();
 	this.update_solution_button();
+	// Block the GIVE UP path briefly: on mobile, the tap that
+	// triggered NEW PUZZLE / NEW GAME can still be in flight when
+	// the button rerenders into GIVE UP, which would instantly end
+	// the run we just started.
+	this.giveup_lockout_until = Date.now() + 500;
     }
 
     // Apply a previously-saved daily state to the UI in place of a fresh
@@ -1622,16 +1679,20 @@ class Game extends Phaser.Scene {
 
 	const items = [backdrop, panel, header];
 
-	// Close (X) button at the top-right of the panel. Replaces the
-	// previous "tap anywhere to close" behaviour.
-	const close_x = this.add.text(bx + bw - 20, by + 22, "×",
+	// Close (X) button at the top-right of the panel. The visual
+	// glyph is small but a 44x44 zone behind it gives a thumb-sized
+	// tap target.
+	const close_cx = bx + bw - 20, close_cy = by + 22;
+	const close_x = this.add.text(close_cx, close_cy, "×",
 				      { fontSize: 26, fontFamily: "'Inter', sans-serif",
 					color: COLOR_MUTED, fontStyle: "600" })
-	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION).setInteractive();
-	close_x.on('pointerover', () => close_x.setColor(COLOR_TEXT));
-	close_x.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
-	close_x.on('pointerdown', () => close(false));
-	items.push(close_x);
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+	const close_zone = this.add.zone(close_cx - 22, close_cy - 22, 44, 44)
+	      .setOrigin(0, 0).setInteractive();
+	close_zone.on('pointerover', () => close_x.setColor(COLOR_TEXT));
+	close_zone.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
+	close_zone.on('pointerdown', () => close(false));
+	items.push(close_x, close_zone);
 
 	// Result subtitle. The Daily tab always describes TODAY's daily,
 	// even if an archived puzzle is currently loaded in the game. The
@@ -1965,15 +2026,19 @@ class Game extends Phaser.Scene {
 	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
 
 	// Explicit X button in the top-right, matching the stats modal.
-	const close_x = this.add.text(bx + bw - 20, by + 22, "×",
+	// 44x44 zone behind the glyph for a thumb-sized tap target.
+	const close_cx = bx + bw - 20, close_cy = by + 22;
+	const close_x = this.add.text(close_cx, close_cy, "×",
 				      { fontSize: 26, fontFamily: "'Inter', sans-serif",
 					color: COLOR_MUTED, fontStyle: "600" })
-	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION).setInteractive();
-	close_x.on('pointerover', () => close_x.setColor(COLOR_TEXT));
-	close_x.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
-	close_x.on('pointerdown', () => container.setVisible(false));
+	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
+	const close_zone = this.add.zone(close_cx - 22, close_cy - 22, 44, 44)
+	      .setOrigin(0, 0).setInteractive();
+	close_zone.on('pointerover', () => close_x.setColor(COLOR_TEXT));
+	close_zone.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
+	close_zone.on('pointerdown', () => container.setVisible(false));
 
-	container.add([backdrop, panel, title, body, close_x]);
+	container.add([backdrop, panel, title, body, close_x, close_zone]);
 	return container;
     }
 
