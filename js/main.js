@@ -21,6 +21,39 @@ function startGame() {
     game.events.once('ready', () => {
 	if (game.canvas) game.canvas.style.touchAction = 'auto';
     });
+    setupKeyboardScroll();
+}
+
+// On mobile, focusing the word <input> pops up the on-screen keyboard
+// and the browser centres the input in the visible area — which hides
+// the word chain above it. Instead we shift the whole #game element
+// up by exactly enough that the input sits a few pixels above the
+// keyboard's top edge, leaving as much chain visible as possible.
+function setupKeyboardScroll() {
+    const vv = window.visualViewport;
+    const game_el = document.getElementById('game');
+    if (!vv || !game_el) return;
+    let applied_shift = 0;
+    const reset = () => {
+	applied_shift = 0;
+	game_el.style.transform = '';
+    };
+    const adjust = () => {
+	const focused = document.activeElement;
+	const is_input = focused && focused.tagName === 'INPUT';
+	const kb_height = window.innerHeight - vv.height;
+	if (!is_input || kb_height < 80) { reset(); return; }
+	const rect = focused.getBoundingClientRect();
+	// rect.bottom already reflects the currently-applied transform,
+	// so the additional shift we need is just (rect.bottom - target).
+	const target_bottom = vv.height + vv.offsetTop - 8;
+	applied_shift = Math.max(0, applied_shift + (rect.bottom - target_bottom));
+	game_el.style.transform = `translateY(${-applied_shift}px)`;
+    };
+    vv.addEventListener('resize', adjust);
+    vv.addEventListener('scroll', adjust);
+    document.addEventListener('focusin', () => setTimeout(adjust, 50));
+    document.addEventListener('focusout', reset);
 }
 
 if (document.fonts && document.fonts.load) {
