@@ -80,6 +80,11 @@
          gesture starts over the game canvas. Phaser sets
          touch-action:none inline; !important wins over that. */
       #game canvas { touch-action: auto !important; }
+      /* Phaser briefly renders a black canvas before its configured
+         backgroundColor takes effect; matching the game-bg colour
+         on the #game div (and the freshly-created canvas) hides
+         that flash. */
+      #game, #game canvas { background: #1e1e2e; }
     </style>
     </head>
 
@@ -89,7 +94,7 @@
              every deploy must bump WG_VER so returning visitors get
              the new JS instead of a stale cached copy. The CDN
              scripts above (Phaser, Firebase, gtag) version themselves. -->
-        <script>window.WG_VER = '20260519a';</script>
+        <script>window.WG_VER = '20260519b';</script>
         <script>
           document.write(
             ['js/boot.js',
