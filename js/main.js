@@ -21,6 +21,20 @@ function startGame() {
     game.events.once('ready', () => {
 	if (game.canvas) game.canvas.style.touchAction = 'auto';
     });
+    // Reveal the canvas only after Phaser has rendered a real frame
+    // with its backgroundColor. CSS keeps it visibility:hidden until
+    // we add the .wg-ready class. Two postrender events deep is
+    // belt-and-braces against the first frame still showing default
+    // black on some browsers.
+    let rendered_frames = 0;
+    game.events.on('postrender', () => {
+	rendered_frames++;
+	if (rendered_frames >= 2) {
+	    const wrapper = document.getElementById('game');
+	    if (wrapper) wrapper.classList.add('wg-ready');
+	    game.events.off('postrender');
+	}
+    });
     setupKeyboardScroll();
 }
 
