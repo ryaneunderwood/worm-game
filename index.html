@@ -85,13 +85,22 @@
 
     <body>
         <div id="game"></div>
-        <!-- Game classes -->
-        <script src="js/boot.js"></script>
-        <script src="js/backend/word_logic.js"></script>
-        <script src="js/ui/settings.js"></script>
-        <script src="js/ui/game_mode_settings.js"></script>
-        <script src="js/ui/game.js"></script>
-        <script src="js/ui/intro.js"></script>
-        <script src="js/main.js"></script>
+        <!-- Game classes. The ?v= query string is a cache-buster:
+             every deploy must bump WG_VER so returning visitors get
+             the new JS instead of a stale cached copy. The CDN
+             scripts above (Phaser, Firebase, gtag) version themselves. -->
+        <script>window.WG_VER = '20260519a';</script>
+        <script>
+          document.write(
+            ['js/boot.js',
+             'js/backend/word_logic.js',
+             'js/ui/settings.js',
+             'js/ui/game_mode_settings.js',
+             'js/ui/game.js',
+             'js/ui/intro.js',
+             'js/main.js']
+            .map(s => '<script src="' + s + '?v=' + window.WG_VER + '"><\/script>').join('')
+          );
+        </script>
     </body>
 </html>

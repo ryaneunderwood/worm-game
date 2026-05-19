@@ -22,13 +22,16 @@ class Boot extends Phaser.Scene {
 	document.head.appendChild(element);
     }
     
-	// Preload assets from disk
+	// Preload assets from disk. Append ?v=WG_VER to local files so
+	// cache busts in lockstep with the JS bundle whenever a deploy
+	// changes the dictionary or daily list.
 	preload () {
+		const v = window.WG_VER ? ('?v=' + window.WG_VER) : '';
 		this.load.plugin('rexshakepositionplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexshakepositionplugin.min.js', true);
-		this.load.html("form", "html/form.html");
-	    this.load.text('legal_words', 'assets/legal_words.txt');
-	    this.load.text('word_graph', 'assets/word_graph_merged15.txt');
-	    this.load.text('daily_list', 'assets/daily_list.txt');
+		this.load.html("form", "html/form.html" + v);
+	    this.load.text('legal_words', 'assets/legal_words.txt' + v);
+	    this.load.text('word_graph', 'assets/word_graph_merged15.txt' + v);
+	    this.load.text('daily_list', 'assets/daily_list.txt' + v);
 	}
 
 
