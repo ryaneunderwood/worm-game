@@ -253,7 +253,8 @@ class Game extends Phaser.Scene {
 	this.giveup_confirm_open = true;
 	this.modal_open = true;
 	const container = this.add.container(0, 0).setDepth(1100);
-	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 0.7)
+	const bgColor = Phaser.Display.Color.HexStringToColor(COLOR_BG).color;
+	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, bgColor, 1)
 	      .setOrigin(0, 0).setInteractive();
 	const bw = WINDOW_WIDTH * 0.7, bh = 180;
 	const bx = (WINDOW_WIDTH - bw) / 2, by = (WINDOW_HEIGHT - bh) / 2;
@@ -1656,7 +1657,8 @@ class Game extends Phaser.Scene {
 	const stats_key = (tab === 'practice') ? 'practice' : 'daily';
 	const st = this.stats[stats_key];
 	const container = this.add.container(0, 0).setDepth(1000);
-	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 0.75)
+	const bgColor = Phaser.Display.Color.HexStringToColor(COLOR_BG).color;
+	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, bgColor, 1)
 	      .setOrigin(0, 0).setInteractive();
 
 	const bw = WINDOW_WIDTH * 0.85, bh = WINDOW_HEIGHT * 0.82;
@@ -1994,7 +1996,8 @@ class Game extends Phaser.Scene {
     create_rules_modal() {
 	const container = this.add.container(0, 0).setDepth(1000).setVisible(false);
 
-	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0x000000, 0.75).setOrigin(0, 0).setInteractive();
+	const bgColor = Phaser.Display.Color.HexStringToColor(COLOR_BG).color;
+	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, bgColor, 1).setOrigin(0, 0).setInteractive();
 
 	const bw = WINDOW_WIDTH * 0.85, bh = WINDOW_HEIGHT * 0.7;
 	const bx = (WINDOW_WIDTH - bw) / 2, by = (WINDOW_HEIGHT - bh) / 2;
