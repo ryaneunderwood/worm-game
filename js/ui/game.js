@@ -181,6 +181,7 @@ class Game extends Phaser.Scene {
 	if (!this.reset || !this.solved) return;
 	const ended = this.game_over();
 	this.set_button_enabled(this.reset, !ended);
+	if (this.undo) this.set_button_enabled(this.undo, !ended);
 	if (this.restart) this.set_button_enabled(this.restart, this.mode !== 'freeplay');
 
 	if (this.mode === 'freeplay') {
@@ -458,14 +459,29 @@ class Game extends Phaser.Scene {
 
 	// If the player already solved or gave up on this past daily,
 	// restore the final state and keep it static — stats must never be
-	// edited after the fact.
+	// edited after the fact. 'solved_late' / 'gave_up_late' come from
+	// archive replays; we treat them as completions for restoration but
+	// preserve the suffix on the calendar / archive indicator.
 	const h = this.stats && this.stats.daily && this.stats.daily.history
 		&& this.stats.daily.history[iso_date];
-	if (h && (h.result === 'solved' || h.result === 'gave_up')) {
-	    this.VICTORY = (h.result === 'solved');
-	    this.GAVE_UP = (h.result === 'gave_up');
+	const solved_results = ['solved', 'solved_late'];
+	const giveup_results = ['gave_up', 'gave_up_late'];
+	if (h && (solved_results.includes(h.result) || giveup_results.includes(h.result))) {
+	    this.VICTORY = solved_results.includes(h.result);
+	    this.GAVE_UP = giveup_results.includes(h.result);
 	    this.count = h.steps || 0;
 	    this.stats_recorded = true;   // safety: prevent any re-record path
+	    // Restore the player's actual chain if we saved it. Older
+	    // entries pre-date the chain-saving change, so fall back to
+	    // showing just the start word.
+	    if (Array.isArray(h.words) && h.words.length > 0) {
+		this.word_history.setText("> " + h.words.join("\n> "));
+		this.current_word = h.words[h.words.length - 1];
+		if (this.word_history.displayHeight > HISTORY_BOX_H)
+		    this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+		else
+		    this.word_history.y = HISTORY_BOX_Y;
+	    }
 	    const ideal = (this.word_path && this.word_path.length > 0)
 		  ? this.word_path.length - 1 : null;
 	    if (this.VICTORY) {
@@ -529,7 +545,13 @@ class Game extends Phaser.Scene {
 	    const mon = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 	    const h = this.stats && this.stats.daily && this.stats.daily.history
 		    && this.stats.daily.history[this.archive_date];
-	    const tag = h ? (h.result === 'solved' ? ' (solved)' : ' (gave up)') : '';
+	    const tag_map = {
+		'solved':       ' (solved)',
+		'gave_up':      ' (gave up)',
+		'solved_late':  ' (completed late)',
+		'gave_up_late': ' (gave up late)',
+	    };
+	    const tag = (h && tag_map[h.result]) || '';
 	    this.archive_label.setText(
 		`ARCHIVE · ${d.getUTCDate()} ${mon[d.getUTCMonth()]} ${d.getUTCFullYear()}${tag} · tap DAILY to return`
 	    );
@@ -607,6 +629,7 @@ class Game extends Phaser.Scene {
 
     apply_practice_state(s) {
 	this.error_msg.setText("");
+	this.set_prompts_visible(true);
 	this.start_word = s.start;
 	this.goal_word.setText(s.goal);
 	this.word_path = s.path && s.path.length ? s.path :
@@ -672,6 +695,7 @@ class Game extends Phaser.Scene {
     // match the saved puzzle.
     apply_daily_state(s) {
 	this.error_msg.setText("");
+	this.set_prompts_visible(true);
 	this.count = s.count || 0;
 	this.VICTORY = !!s.victory;
 	this.GAVE_UP = !!s.gave_up;
@@ -1021,7 +1045,10 @@ class Game extends Phaser.Scene {
 	    st.last_win_date = today;
 	    st.history = st.history || {};
 	    const ideal = (this.word_path && this.word_path.length > 0) ? this.word_path.length - 1 : null;
-	    st.history[today] = { result: 'solved', steps: this.count, ideal: ideal };
+	    st.history[today] = {
+		result: 'solved', steps: this.count, ideal: ideal,
+		words: this.daily_history_words(),
+	    };
 	} else {
 	    st.streak += 1;
 	}
@@ -1040,9 +1067,64 @@ class Game extends Phaser.Scene {
 	    st.history = st.history || {};
 	    const today = this.iso_today();
 	    const ideal = (this.word_path && this.word_path.length > 0) ? this.word_path.length - 1 : null;
-	    st.history[today] = { result: 'gave_up', ideal: ideal };
+	    st.history[today] = {
+		result: 'gave_up', ideal: ideal,
+		words: this.daily_history_words(),
+	    };
 	}
 	this.save_stats();
+    }
+
+    // Record a late solve via the archive. Only writes when there's no
+    // prior entry for the date — a missed day. Real on-day results are
+    // never overwritten. Late solves don't affect streak / distribution
+    // / world aggregates; they only mark the calendar cell as yellow
+    // and stash the winning chain so it can be re-read later.
+    record_archive_solve() {
+	if (!this.archive_date) return;
+	if (!this.stats) this.stats = this.default_stats();
+	if (!this.stats.daily) this.stats.daily = {};
+	const st = this.stats.daily;
+	st.history = st.history || {};
+	if (st.history[this.archive_date]) return;
+	const ideal = (this.word_path && this.word_path.length > 0) ? this.word_path.length - 1 : null;
+	st.history[this.archive_date] = {
+	    result: 'solved_late', steps: this.count, ideal: ideal,
+	    words: this.daily_history_words(),
+	};
+	this.save_stats();
+    }
+
+    // Pop the last guess off the chain. No-op on a finished game,
+    // mid-freeplay-setup (no chain yet), or when only the start word
+    // remains. Mirrors save_current_state() so localStorage and the
+    // remote stats doc stay in sync with the on-screen chain.
+    undo_last_word() {
+	if (this.game_over()) return;
+	if (this.freeplay_stage !== FREEPLAY_STAGES["none"]) return;
+	const lines = (this.word_history.text || "").split('\n');
+	if (lines.length <= 1) return;
+	lines.pop();
+	this.word_history.setText(lines.join('\n'));
+	if (this.word_history.displayHeight > HISTORY_BOX_H)
+	    this.word_history.y = HISTORY_BOX_Y + HISTORY_BOX_H - this.word_history.displayHeight;
+	else
+	    this.word_history.y = HISTORY_BOX_Y;
+	this.count = Math.max(0, this.count - 1);
+	this.score_counter.setText(String(this.count));
+	const last = lines[lines.length - 1] || "";
+	const m = last.match(/^>\s*(.*)$/);
+	this.current_word = (m && m[1]) ? m[1] : this.start_word.toUpperCase();
+	this.set_prompts_visible(true);
+	this.save_current_state();
+    }
+
+    // Show or hide the start/goal prompt labels. We hide them while a
+    // long easter-egg complaint string is displayed in the score slot
+    // so the wrap-around text doesn't visually crash into the prompts.
+    set_prompts_visible(visible) {
+	if (this.prev_word) this.prev_word.setVisible(visible);
+	if (this.goal_word) this.goal_word.setVisible(visible);
     }
 
     // Reset game variables
@@ -1060,6 +1142,7 @@ class Game extends Phaser.Scene {
 	this.word_history.setText("> "+this.start_word.toUpperCase());
 	this.word_history.y = HISTORY_BOX_Y;
 	if (this.ideal_history) { this.ideal_history.setText(""); this.ideal_history.y = HISTORY_BOX_Y; }
+	this.set_prompts_visible(true);
 	this.refresh_button_states();
     }
 
@@ -1157,6 +1240,9 @@ class Game extends Phaser.Scene {
 	    // Victory!
 	} else if (this.VICTORY) {
 	    this.shake_input.shake();
+	    // Complaints can run wide enough to overlap the start/goal
+	    // labels — hide those while a complaint is in the score slot.
+	    this.set_prompts_visible(false);
 	    if (this.complaint_counter < this.complaints_array.length) {
 		let complain_string = this.complaints_array.at(this.complaint_counter);
 		this.score_counter.setText(complain_string);
@@ -1194,6 +1280,12 @@ class Game extends Phaser.Scene {
 		    this.stats_recorded = true;
 		    if (this.mode === 'daily') this.contribute_to_aggregate(true, over);
 		    this.show_stats_modal(this.mode, true);
+		} else if (this.archive_date && !this.stats_recorded) {
+		    // Late-solve via the calendar archive: mark the cell yellow
+		    // and persist the player's chain, but don't touch streak,
+		    // distribution, or world aggregates.
+		    this.record_archive_solve();
+		    this.stats_recorded = true;
 		}
 		this.refresh_button_states();
 		this.update_solution_button();
@@ -1314,6 +1406,13 @@ class Game extends Phaser.Scene {
 	    this.save_current_state();
 	});
 
+	// UNDO sits immediately to the right of RESET. Pops the last word
+	// off the chain instead of nuking it back to the start, so a
+	// mis-typed letter doesn't cost the whole run.
+	const undo_x = this.reset.zone.x + this.reset.zone.width + 8;
+	this.undo = this.add_button(undo_x, RESET_Y, "↑", ACTION_FONTSIZE, COLOR_RED, 0, 0, APX + 4, APY);
+	this.undo.zone.on('pointerdown', () => this.undo_last_word());
+
 	// Was "NEW PUZZLE"; now opens the stats modal for the current
 	// mode. In free play there are no stats to show, so the button is
 	// visible but disabled.
@@ -1340,6 +1439,7 @@ class Game extends Phaser.Scene {
     // Green = solved, red = gave-up, muted = not played; today gets a
     // blue outline.
     _render_calendar_tab(items, bx, bw, y0, greenColor, redColor, mutedColor, close_modal) {
+	const yellowColor = Phaser.Display.Color.HexStringToColor(COLOR_YELLOW).color;
 	const cell = 32;
 	const gap  = 4;
 	const cols = 7;
@@ -1388,10 +1488,12 @@ class Game extends Phaser.Scene {
 
 	    const g = this.add.graphics();
 	    let fill_color, fill_alpha;
-	    if (h && h.result === 'solved')         { fill_color = greenColor; fill_alpha = 0.85; }
-	    else if (h && h.result === 'gave_up')   { fill_color = redColor;   fill_alpha = 0.85; }
-	    else if (is_future)                      { fill_color = mutedColor; fill_alpha = 0.08; }
-	    else                                     { fill_color = mutedColor; fill_alpha = 0.25; }
+	    if (h && h.result === 'solved')              { fill_color = greenColor;  fill_alpha = 0.85; }
+	    else if (h && h.result === 'gave_up')        { fill_color = redColor;    fill_alpha = 0.85; }
+	    else if (h && h.result === 'solved_late')    { fill_color = yellowColor; fill_alpha = 0.85; }
+	    else if (h && h.result === 'gave_up_late')   { fill_color = yellowColor; fill_alpha = 0.85; }
+	    else if (is_future)                           { fill_color = mutedColor; fill_alpha = 0.08; }
+	    else                                          { fill_color = mutedColor; fill_alpha = 0.25; }
 	    g.fillStyle(fill_color, fill_alpha).fillRoundedRect(cx, cy, cell, cell, 5);
 	    if (is_today) {
 		g.lineStyle(1.8, blueColor, 0.95).strokeRoundedRect(cx, cy, cell, cell, 5);
@@ -1440,9 +1542,10 @@ class Game extends Phaser.Scene {
 	// "● label" pairs out left-to-right and centre the whole strip.
 	const legend_y = grid_y + rows * (cell + gap) + 12;
 	const legend_parts = [
-	    { dot: COLOR_GREEN, label: 'solved' },
-	    { dot: COLOR_RED,   label: 'gave up' },
-	    { dot: COLOR_MUTED, label: 'not played' },
+	    { dot: COLOR_GREEN,  label: 'solved' },
+	    { dot: COLOR_RED,    label: 'gave up' },
+	    { dot: COLOR_YELLOW, label: 'late'    },
+	    { dot: COLOR_MUTED,  label: 'not played' },
 	];
 	const make_measure = (text, color) => this.add.text(0, 0, text,
 	    { fontSize: 11, fontFamily: "'Inter', sans-serif", color: color });
