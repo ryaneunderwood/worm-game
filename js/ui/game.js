@@ -1408,9 +1408,12 @@ class Game extends Phaser.Scene {
 
 	// UNDO sits immediately to the right of RESET. Pops the last word
 	// off the chain instead of nuking it back to the start, so a
-	// mis-typed letter doesn't cost the whole run.
-	const undo_x = this.reset.zone.x + this.reset.zone.width + 8;
-	this.undo = this.add_button(undo_x, RESET_Y, "↑", ACTION_FONTSIZE, COLOR_RED, 0, 0, APX + 4, APY);
+	// mis-typed letter doesn't cost the whole run. The button uses a
+	// wider padding than RESET so we offset by gap + its own padding
+	// to keep the boxes from overlapping.
+	const UNDO_APX = APX + 4;
+	const undo_x = this.reset.zone.x + this.reset.zone.width + 8 + UNDO_APX;
+	this.undo = this.add_button(undo_x, RESET_Y, "↑", ACTION_FONTSIZE, COLOR_RED, 0, 0, UNDO_APX, APY);
 	this.undo.zone.on('pointerdown', () => this.undo_last_word());
 
 	// Was "NEW PUZZLE"; now opens the stats modal for the current
