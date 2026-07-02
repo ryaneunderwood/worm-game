@@ -1102,6 +1102,10 @@ class Game extends Phaser.Scene {
     undo_last_word() {
 	if (this.game_over()) return;
 	if (this.freeplay_stage !== FREEPLAY_STAGES["none"]) return;
+	// Mobile taps can register 2–3 times in the ~200ms it takes the
+	// finger to lift; debounce so one tap = one pop.
+	if (this.undo_lockout_until && Date.now() < this.undo_lockout_until) return;
+	this.undo_lockout_until = Date.now() + 350;
 	const lines = (this.word_history.text || "").split('\n');
 	if (lines.length <= 1) return;
 	lines.pop();
