@@ -95,8 +95,11 @@ ube
 riced
 ricing
 lede
+ledes
 bao
+baos
 bool
+bools
 tweeted
 tweeting
 unbox
