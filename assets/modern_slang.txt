@@ -96,6 +96,7 @@ riced
 ricing
 lede
 bao
+bool
 tweeted
 tweeting
 unbox
