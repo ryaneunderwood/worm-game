@@ -1,0 +1,19 @@
+# Worm Game — https://soft-shade.github.io/worm-game/
+#
+# NOTE: crawlers only read robots.txt from a domain ROOT, i.e.
+# https://soft-shade.github.io/robots.txt — they will never fetch it
+# from /worm-game/. This copy is kept with the project for reference
+# and is inert where it sits. To make these rules take effect, create
+# a repo named exactly `soft-shade.github.io` and put this file at its
+# root. See notes in the SEO discussion for the full steps.
+
+User-agent: *
+Allow: /
+
+# Python tooling and word-list source data — no search value, and
+# crawl budget is better spent on the game itself.
+Disallow: /utils/
+Disallow: /assets/*.py$
+Disallow: /html/
+
+Sitemap: https://soft-shade.github.io/worm-game/sitemap.xml

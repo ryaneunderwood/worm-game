@@ -1,8 +1,65 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
   <head>
-    <title>Worm Game</title>
+    <meta charset="utf-8">
+    <title>Worm Game — Daily Word Ladder Puzzle by Softshade</title>
+    <meta name="description" content="Worm Game is a free daily word ladder puzzle by Softshade. Change, add, or remove one letter at a time to travel from the start word to the goal word — every step a real English word. New daily words each day, plus unlimited Challenge and Free Play modes.">
+    <link rel="canonical" href="https://soft-shade.github.io/worm-game/">
+
+    <!-- Open Graph / Twitter: no direct ranking effect, but these
+         control how the link renders when someone shares it, and
+         shares are what earn the inbound links that do rank. -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Worm Game">
+    <meta property="og:title" content="Worm Game — Daily Word Ladder Puzzle by Softshade">
+    <meta property="og:description" content="Travel from the start word to the goal word one letter at a time. A free daily word ladder puzzle by Softshade.">
+    <meta property="og:url" content="https://soft-shade.github.io/worm-game/">
+    <meta property="og:image" content="https://soft-shade.github.io/worm-game/favicon.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Worm Game — Daily Word Ladder Puzzle by Softshade">
+    <meta name="twitter:description" content="Travel from the start word to the goal word one letter at a time. A free daily word ladder puzzle by Softshade.">
+    <meta name="twitter:image" content="https://soft-shade.github.io/worm-game/favicon.png">
+
+    <!-- Structured data. This is the sanctioned way to hand a crawler
+         descriptive text that never renders for the viewer: search
+         engines parse it, browsers ignore it entirely. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Worm Game",
+      "alternateName": ["Worm", "Word Ladder Game"],
+      "url": "https://soft-shade.github.io/worm-game/",
+      "image": "https://soft-shade.github.io/worm-game/favicon.png",
+      "description": "Worm Game is a free daily word ladder puzzle. Starting from a given word, change, add, or remove a single letter at a time until you reach the goal word, keeping every intermediate step a valid English word. Includes a curated daily words puzzle, an unlimited Challenge mode, and a Free Play mode where you choose both ends of the ladder.",
+      "genre": ["Word game", "Puzzle", "Word ladder"],
+      "keywords": "word ladder, worm game, Softshade, soft-shade, daily words, daily word puzzle, word puzzle, doublets, word chain, free browser puzzle game",
+      "applicationCategory": "GameApplication",
+      "gamePlatform": "Web browser",
+      "operatingSystem": "Any (web browser)",
+      "playMode": "SinglePlayer",
+      "inLanguage": "en",
+      "isAccessibleForFree": true,
+      "author": {
+        "@type": "Organization",
+        "name": "Softshade",
+        "alternateName": "soft-shade",
+        "url": "https://github.com/soft-shade"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Softshade",
+        "alternateName": "soft-shade",
+        "url": "https://github.com/soft-shade"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
     <!-- Favicon: prefer the rasterised PNG (Fredoka baked into the
          glyphs), fall back to the legacy ICO for old browsers and to
          the SVG for vector-capable ones that ignore the PNG. -->
@@ -76,6 +133,58 @@
         justify-content: center;
         align-items: center;
       }
+      /* HOW TO PLAY overlay. Real DOM rather than Phaser text, so the
+         only prose the game has is in the markup where crawlers and
+         screen readers can reach it. Absolutely positioned inside
+         #game, which is exactly canvas-sized, so it lines up with the
+         640x640 render without tracking Phaser's coordinate space. */
+      #game { position: relative; }
+      #wg-rules[hidden] { display: none; }
+      #wg-rules {
+        position: absolute;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #1e1e2e;
+        font-family: 'Inter', sans-serif;
+      }
+      #wg-rules .wg-rules-panel {
+        position: relative;
+        box-sizing: border-box;
+        width: 85%;
+        max-height: 82%;
+        overflow-y: auto;
+        padding: 22px 28px 24px;
+        border: 1.5px solid rgba(108, 112, 134, 0.8);
+        border-radius: 14px;
+        background: #313244;
+        box-shadow: 4px 6px 0 rgba(0, 0, 0, 0.5);
+        color: #cdd6f4;
+      }
+      #wg-rules h2 {
+        margin: 0 0 14px;
+        font-size: 26px;
+        font-weight: 600;
+        text-align: center;
+      }
+      #wg-rules p, #wg-rules dl { margin: 0 0 12px; font-size: 16px; line-height: 1.45; }
+      #wg-rules dt { font-weight: 600; }
+      #wg-rules dd { margin: 0 0 6px; }
+      #wg-rules dd:last-of-type { margin-bottom: 0; }
+      #wg-rules p:last-child { margin-bottom: 0; }
+      #wg-rules .wg-rules-close {
+        position: absolute;
+        top: 0; right: 0;
+        width: 44px; height: 44px;
+        border: 0;
+        background: none;
+        color: #6c7086;
+        font: 600 26px/1 'Inter', sans-serif;
+        cursor: pointer;
+      }
+      #wg-rules .wg-rules-close:hover { color: #cdd6f4; }
       /* Keep mobile pinch-zoom and drag-to-scroll working when the
          gesture starts over the game canvas. Phaser sets
          touch-action:none inline; !important wins over that. */
@@ -93,12 +202,38 @@
     </head>
 
     <body>
-        <div id="game"></div>
+        <div id="game">
+          <!-- HOW TO PLAY overlay, shown by the in-game RULES button.
+               Lives in the markup rather than the canvas so the text is
+               readable by screen readers and search engines. -->
+          <div id="wg-rules" role="dialog" aria-modal="true" aria-labelledby="wg-rules-title" hidden>
+            <div class="wg-rules-panel">
+              <button type="button" class="wg-rules-close" aria-label="Close">&times;</button>
+              <h2 id="wg-rules-title">How to play Worm Game</h2>
+              <p>
+                Worm Game is a word ladder puzzle by Softshade. Get from the
+                start word to the goal word by adding, removing, or changing
+                one letter at a time. Every intermediate word must be a valid
+                English word. For example, COLD to WARM runs COLD, CORD, CARD,
+                WARD, WARM.
+              </p>
+              <dl>
+                <dt>Daily puzzle</dt>
+                <dd>A curated pair of daily words, refreshed every day.</dd>
+                <dt>Unlimited</dt>
+                <dd>Unlimited random word pairs, as many ladders as you like.</dd>
+                <dt>Free play</dt>
+                <dd>Pick your own start and goal words.</dd>
+              </dl>
+              <p>Press X to close.</p>
+            </div>
+          </div>
+        </div>
         <!-- Game classes. The ?v= query string is a cache-buster:
              every deploy must bump WG_VER so returning visitors get
              the new JS instead of a stale cached copy. The CDN
              scripts above (Phaser, Firebase, gtag) version themselves. -->
-        <script>window.WG_VER = '20260519j';</script>
+        <script>window.WG_VER = '20260805a';</script>
         <script>
           document.write(
             ['js/boot.js',

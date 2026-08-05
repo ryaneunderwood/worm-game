@@ -1436,7 +1436,7 @@ class Game extends Phaser.Scene {
 	// Rules button replaces the old mute toggle
 	this.rules_button = this.add_button(SOUND_TOGGLE_X, SOUND_TOGGLE_Y, "RULES", ACTION_FONTSIZE, COLOR_RED, 1, 0, APX, APY);
 	this.rules_modal = this.create_rules_modal();
-	this.rules_button.zone.on('pointerdown', () => this.rules_modal.setVisible(true));
+	this.rules_button.zone.on('pointerdown', () => this.rules_modal.show());
 
 	this.load_gamemodes();
     }
@@ -2102,57 +2102,29 @@ class Game extends Phaser.Scene {
 	// the X button in the top-right handles that explicitly.
     }
 
-    // A dismissible overlay explaining the rules
+    // A dismissible overlay explaining the rules.
+    //
+    // Unlike the other modals this one is plain DOM (#wg-rules in
+    // index.html) rather than Phaser objects. Canvas text is invisible
+    // to screen readers and to search-engine crawlers, and the rules
+    // are the only real prose the game has — keeping them in the
+    // markup is what makes the page indexable for "word ladder" and
+    // friends. The panel is styled in index.html to match the canvas
+    // modals; only the show/hide wiring lives here.
     create_rules_modal() {
-	const container = this.add.container(0, 0).setDepth(1000).setVisible(false);
+	const el = document.getElementById('wg-rules');
+	if (!el) return { show() {}, hide() {} };
 
-	const bgColor = Phaser.Display.Color.HexStringToColor(COLOR_BG).color;
-	const backdrop = this.add.rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, bgColor, 1).setOrigin(0, 0).setInteractive();
-
-	const bw = WINDOW_WIDTH * 0.85, bh = WINDOW_HEIGHT * 0.7;
-	const bx = (WINDOW_WIDTH - bw) / 2, by = (WINDOW_HEIGHT - bh) / 2;
-	const fillColor = Phaser.Display.Color.HexStringToColor(COLOR_BOX_FILL).color;
-	const mutedColor = Phaser.Display.Color.HexStringToColor(COLOR_MUTED).color;
-	const panel = this.add.graphics();
-	panel.fillStyle(0x000000, 0.5).fillRoundedRect(bx + 4, by + 6, bw, bh, 14);
-	panel.fillStyle(fillColor, 1).fillRoundedRect(bx, by, bw, bh, 14);
-	panel.lineStyle(1.5, mutedColor, 0.8).strokeRoundedRect(bx, by, bw, bh, 14);
-
-	const title = this.add.text(WINDOW_WIDTH / 2, by + 28, "HOW TO PLAY",
-				    { fontSize: 28, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT, fontStyle: "600" })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-
-	const body_str =
-	    "Get from the start word to the goal word by\n" +
-	    "adding, removing, or changing one letter at\n" +
-	    "a time. Every intermediate word must be a\n" +
-	    "valid English word.\n" +
-	    "\n" +
-	    "DAILY PUZZLE: a curated pair, refreshed daily.\n" +
-	    "UNLIMITED: unlimited random pairs.\n" +
-	    "FREE PLAY: pick your own start and goal.\n" +
-	    "\n" +
-	    "Press X to close.";
-	const body = this.add.text(WINDOW_WIDTH / 2, by + 80, body_str,
-				   { fontSize: 17, fontFamily: "'Inter', sans-serif", color: COLOR_TEXT,
-				     align: "center", lineSpacing: 6 })
-	      .setOrigin(0.5, 0).setResolution(RESOLUTION);
-
-	// Explicit X button in the top-right, matching the stats modal.
-	// 44x44 zone behind the glyph for a thumb-sized tap target.
-	const close_cx = bx + bw - 20, close_cy = by + 22;
-	const close_x = this.add.text(close_cx, close_cy, "×",
-				      { fontSize: 26, fontFamily: "'Inter', sans-serif",
-					color: COLOR_MUTED, fontStyle: "600" })
-	      .setOrigin(0.5, 0.5).setResolution(RESOLUTION);
-	const close_zone = this.add.zone(close_cx - 22, close_cy - 22, 44, 44)
-	      .setOrigin(0, 0).setInteractive();
-	close_zone.on('pointerover', () => close_x.setColor(COLOR_TEXT));
-	close_zone.on('pointerout',  () => close_x.setColor(COLOR_MUTED));
-	close_zone.on('pointerdown', () => container.setVisible(false));
-
-	container.add([backdrop, panel, title, body, close_x, close_zone]);
-	return container;
+	const modal = {
+	    show() { el.hidden = false; },
+	    hide() { el.hidden = true;  },
+	};
+	// onclick rather than addEventListener: the scene can be created
+	// more than once (restart), and assigning replaces the previous
+	// handler instead of stacking a new one on the same button.
+	el.querySelector('.wg-rules-close').onclick = () => modal.hide();
+	modal.hide();
+	return modal;
     }
 
     // Load game mode buttons (with bubble boxes). Daily Puzzle is
